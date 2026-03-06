@@ -26,20 +26,31 @@ Requisitos: **Node.js 20+**, **pnpm**, **PostgreSQL** (local o Docker).
 2. Copiar variables de entorno y configurar la base de datos:
    ```bash
    cp .env.example .env
-   # Editar .env y setear DATABASE_URL (ej: postgresql://user:password@localhost:5432/mi_rotaract)
+   # Editar .env: DATABASE_URL (ej: postgresql://user:password@localhost:5432/mi_rotaract), JWT_SECRET, CORS_ORIGIN si aplica.
    ```
 3. Crear la base en PostgreSQL y aplicar migraciones de Prisma:
    ```bash
    pnpm db:push
    # o: pnpm db:migrate
    ```
-4. Construir paquetes y levantar frontend y API:
+4. Ejecutar el seed para crear usuarios y reunión de ejemplo:
+   ```bash
+   pnpm db:seed
+   ```
+   **Usuarios de prueba** (contraseña: `password123`):
+   - `secretaria@mirotaract.org` — Secretaría (administración)
+   - `representante@mirotaract.org` — Representante distrital (administración)
+   - `presidente.alpha@mirotaract.org` — Presidente Club Alpha (votante)
+   - `presidente.beta@mirotaract.org` — Presidente Club Beta (votante)
+5. Construir paquetes y levantar frontend y API:
    ```bash
    pnpm build
    pnpm dev
    ```
    - Web: http://localhost:3000  
    - API: http://localhost:3001 (health: http://localhost:3001/health)
+
+**Variables de entorno** (ver `.env.example`): `DATABASE_URL`, `PORT`, `JWT_SECRET`, `CORS_ORIGIN` (API); `NEXT_PUBLIC_API_URL`, opcionalmente `NEXT_PUBLIC_WS_URL` (web).
 
 ## Cómo usarlo
 1. Copiá la carpeta `.cursor` dentro del root del repo.

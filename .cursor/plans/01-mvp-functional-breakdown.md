@@ -1,13 +1,16 @@
-﻿# MVP Functional Breakdown
+# MVP Functional Breakdown
 
 ## 1. Login y acceso
-### Participante
-- ingresa con usuario validado,
-- ve solo reuniones donde participa.
+### Administración (Representante distrital y Secretaría)
+- ingresan con usuario validado,
+- acceden al dashboard administrativo,
+- administran reuniones y ven trazabilidad,
+- abren/cierran votaciones y gestionan agenda y cola de palabra.
 
-### SecretarÃ­a
-- accede a dashboard administrativo,
-- administra reuniones y ve trazabilidad.
+### Presidentes de club (votantes)
+- ingresan con usuario validado,
+- ven solo reuniones donde están asignados como participantes,
+- pueden votar en las votaciones abiertas (derecho a voto por ser presidentes de club).
 
 ## 2. Reuniones
 ### Estados sugeridos
