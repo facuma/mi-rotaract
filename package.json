@@ -2,13 +2,14 @@
   "name": "mi-rotaract",
   "private": true,
   "scripts": {
-    "dev": "pnpm run build --filter @mi-rotaract/shared-types && pnpm --filter web --filter api --parallel run dev",
+    "dev": "pnpm --filter @mi-rotaract/shared-types run build && pnpm --filter web --filter api --parallel run dev",
     "build": "pnpm run -r build",
     "lint": "pnpm run -r lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "db:generate": "pnpm --filter api exec prisma generate",
     "db:migrate": "pnpm --filter api run prisma:migrate",
-    "db:push": "pnpm --filter api run prisma:push"
+    "db:push": "pnpm --filter api run prisma:push",
+    "db:seed": "pnpm --filter api run prisma:seed"
   },
   "devDependencies": {
     "prettier": "^3.2.5"

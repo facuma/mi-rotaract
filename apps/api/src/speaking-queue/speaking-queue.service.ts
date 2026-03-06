@@ -1,0 +1,139 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { MeetingStatus, SpeakingRequestStatus } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
+
+@Injectable()
+export class SpeakingQueueService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeGateway,
+    private readonly audit: AuditService,
+  ) {}
+
+  async request(meetingId: string, userId: string) {
+    const meeting = await this.prisma.meeting.findUnique({ where: { id: meetingId } });
+    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+    if (meeting.status !== MeetingStatus.LIVE && meeting.status !== MeetingStatus.PAUSED)
+      throw new BadRequestException('Solo en reunión en vivo o pausada');
+    const existing = await this.prisma.speakingRequest.findFirst({
+      where: { meetingId, userId, status: SpeakingRequestStatus.PENDING },
+    });
+    if (existing) throw new BadRequestException('Ya tenés una solicitud pendiente');
+    const maxPos = await this.prisma.speakingRequest
+      .aggregate({
+        where: { meetingId, status: { in: [SpeakingRequestStatus.PENDING, SpeakingRequestStatus.ACCEPTED] } },
+        _max: { position: true },
+      })
+      .then((r) => r._max.position ?? -1);
+    const req = await this.prisma.speakingRequest.create({
+      data: { meetingId, userId, position: maxPos + 1 },
+      include: { user: true },
+    });
+    await this.audit.log({
+      meetingId,
+      actorUserId: userId,
+      action: 'speaking.request.created',
+      entityType: 'SpeakingRequest',
+      entityId: req.id,
+    });
+    await this.realtime.broadcastSnapshot(meetingId);
+    return req;
+  }
+
+  async cancel(meetingId: string, requestId: string, userId: string) {
+    const req = await this.prisma.speakingRequest.findFirst({
+      where: { id: requestId, meetingId },
+    });
+    if (!req) throw new NotFoundException('Solicitud no encontrada');
+    if (req.userId !== userId) throw new BadRequestException('No podés cancelar esta solicitud');
+    if (req.status !== SpeakingRequestStatus.PENDING)
+      throw new BadRequestException('Solo se puede cancelar una solicitud pendiente');
+    await this.prisma.speakingRequest.update({
+      where: { id: requestId },
+      data: { status: SpeakingRequestStatus.CANCELLED },
+    });
+    await this.audit.log({
+      meetingId,
+      actorUserId: userId,
+      action: 'speaking.request.updated',
+      entityType: 'SpeakingRequest',
+      entityId: requestId,
+      metadata: { status: 'CANCELLED' },
+    });
+    await this.realtime.broadcastSnapshot(meetingId);
+    return { ok: true };
+  }
+
+  async list(meetingId: string) {
+    return this.prisma.speakingRequest.findMany({
+      where: { meetingId, status: { in: [SpeakingRequestStatus.PENDING, SpeakingRequestStatus.ACCEPTED] } },
+      orderBy: { position: 'asc' },
+      include: { user: { select: { id: true, fullName: true } } },
+    });
+  }
+
+  async setCurrentSpeaker(meetingId: string, userId: string | null, actorUserId: string) {
+    const meeting = await this.prisma.meeting.findUnique({ where: { id: meetingId } });
+    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+    const updated = await this.prisma.meeting.update({
+      where: { id: meetingId },
+      data: { currentSpeakerId: userId },
+    });
+    await this.audit.log({
+      meetingId,
+      actorUserId,
+      action: 'meeting.speaker.changed',
+      entityType: 'Meeting',
+      entityId: meetingId,
+      metadata: { currentSpeakerId: updated.currentSpeakerId, nextSpeakerId: updated.nextSpeakerId },
+    });
+    await this.realtime.broadcastSnapshot(meetingId);
+    return this.getQueueState(meetingId);
+  }
+
+  async setNextSpeaker(meetingId: string, userId: string | null, actorUserId: string) {
+    const meeting = await this.prisma.meeting.findUnique({ where: { id: meetingId } });
+    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+    const updated = await this.prisma.meeting.update({
+      where: { id: meetingId },
+      data: { nextSpeakerId: userId },
+    });
+    await this.audit.log({
+      meetingId,
+      actorUserId,
+      action: 'meeting.speaker.changed',
+      entityType: 'Meeting',
+      entityId: meetingId,
+      metadata: { currentSpeakerId: updated.currentSpeakerId, nextSpeakerId: updated.nextSpeakerId },
+    });
+    await this.realtime.broadcastSnapshot(meetingId);
+    return this.getQueueState(meetingId);
+  }
+
+  async getQueueState(meetingId: string) {
+    const meeting = await this.prisma.meeting.findUnique({
+      where: { id: meetingId },
+      include: {
+        speakingRequests: {
+          where: { status: { in: [SpeakingRequestStatus.PENDING, SpeakingRequestStatus.ACCEPTED] } },
+          orderBy: { position: 'asc' },
+          include: { user: { select: { id: true, fullName: true } } },
+        },
+      },
+    });
+    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+    const currentUser = meeting.currentSpeakerId
+      ? await this.prisma.user.findUnique({ where: { id: meeting.currentSpeakerId }, select: { id: true, fullName: true } })
+      : null;
+    const nextUser = meeting.nextSpeakerId
+      ? await this.prisma.user.findUnique({ where: { id: meeting.nextSpeakerId }, select: { id: true, fullName: true } })
+      : null;
+    return {
+      queue: meeting.speakingRequests,
+      currentSpeaker: currentUser,
+      nextSpeaker: nextUser,
+    };
+  }
+}
