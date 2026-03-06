@@ -1,0 +1,40 @@
+﻿---
+description: Reglas de seguridad, roles y auditorÃ­a
+globs:
+alwaysApply: true
+---
+
+# Seguridad y roles
+
+## Roles mÃ­nimos
+- SUPER_ADMIN
+- SECRETARIAT
+- PRESIDENT
+- VIEWER (opcional futuro)
+
+## Reglas de acceso
+- solo secretarÃ­a y super admin gestionan reuniones,
+- solo participantes autorizados pueden entrar a una reuniÃ³n,
+- solo participantes habilitados pueden votar,
+- solo secretarÃ­a ve el detalle nominal del voto,
+- los resultados agregados se exponen segÃºn estado de la votaciÃ³n.
+
+## AutenticaciÃ³n
+- sesiÃ³n segura,
+- hashing de contraseÃ±as,
+- expiraciÃ³n razonable,
+- posibilidad futura de magic link o invitaciÃ³n.
+
+## AuditorÃ­a obligatoria
+Registrar:
+- quiÃ©n hizo la acciÃ³n,
+- cuÃ¡ndo,
+- en quÃ© reuniÃ³n,
+- tipo de acciÃ³n,
+- payload mÃ­nimo Ãºtil.
+
+## Datos sensibles
+- el detalle de voto es sensible,
+- no exponer emails o metadata innecesaria por socket,
+- nunca confiar en el rol enviado por frontend,
+- validar todo en backend.

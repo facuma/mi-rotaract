@@ -1,0 +1,59 @@
+﻿---
+description: Contexto general del producto Rotaract SGI y propÃ³sito del MVP
+globs:
+alwaysApply: true
+---
+
+# Contexto del proyecto
+
+Este proyecto busca digitalizar las reuniones distritales de presidentes de clubes Rotaract, convirtiÃ©ndolas en experiencias interactivas, moderables, trazables y con registro histÃ³rico.
+
+## Problema a resolver
+Hoy una reuniÃ³n distrital suele depender de procesos manuales:
+- toma de asistencia informal,
+- orden de oradores no centralizado,
+- votaciones poco estandarizadas,
+- resultados difÃ­ciles de auditar,
+- historial disperso o inexistente.
+
+## Objetivo del MVP
+Construir un mÃ³dulo inicial que permita:
+- administrar reuniones distritales,
+- mostrar el estado de la reuniÃ³n en tiempo real,
+- habilitar votaciones digitales,
+- gestionar solicitudes de palabra,
+- visualizar timers,
+- registrar acciones relevantes con trazabilidad.
+
+## Perfiles principales
+1. **Presidentes / participantes**
+2. **SecretarÃ­a / administraciÃ³n / moderaciÃ³n**
+
+## Restricciones de producto
+- Mobile-first.
+- Flujo simple, sin pasos innecesarios.
+- La interfaz no debe entorpecer la dinÃ¡mica real de una reuniÃ³n.
+- La informaciÃ³n crÃ­tica debe verse en tiempo real.
+- La plataforma debe dejar base sÃ³lida para mÃ³dulos posteriores.
+
+## MÃ³dulos futuros contemplados pero fuera del MVP
+- blogs autogestionables,
+- documentos y actas avanzadas,
+- mÃ©tricas distritales,
+- biblioteca institucional,
+- gestiÃ³n de comitÃ©s y submÃ³dulos de comunicaciÃ³n.
+
+## Criterio general para generar cÃ³digo
+Toda propuesta debe respetar:
+- separaciÃ³n clara entre frontend y backend,
+- diseÃ±o escalable para mÃºltiples reuniones y mÃºltiples clubes,
+- trazabilidad de acciones crÃ­ticas,
+- bajo acoplamiento,
+- nomenclatura consistente,
+- preparaciÃ³n para crecimiento futuro.
+
+## Decisiones que no deben romperse
+- Next.js para experiencia web del usuario.
+- NestJS para API, reglas de negocio y tiempo real.
+- Prisma + PostgreSQL para persistencia.
+- WebSockets para sincronizaciÃ³n en vivo.

@@ -1,0 +1,63 @@
+﻿---
+description: Contratos y normas para tiempo real con WebSockets
+globs:
+  - apps/api/**/gateway*
+  - apps/web/**/socket*
+alwaysApply: false
+---
+
+# Reglas realtime
+
+## Objetivo
+Mantener sincronizada la reuniÃ³n en vivo con baja fricciÃ³n y alta confiabilidad.
+
+## Principios
+- el socket publica cambios,
+- la API recupera snapshots y corrige desvÃ­os,
+- cada reuniÃ³n tiene su room,
+- el cliente debe poder rehidratar estado tras reconnect.
+
+## Eventos del servidor al cliente
+- meeting.snapshot
+- meeting.status.changed
+- topic.changed
+- topic.reordered
+- timer.updated
+- timer.overtime
+- speaking.requested
+- speaking.queue.updated
+- speaking.current.changed
+- vote.opened
+- vote.submitted.confirmed
+- vote.results.available
+- participant.connected
+- participant.disconnected
+
+## Eventos del cliente al servidor
+- meeting.join
+- meeting.leave
+- speaking.request
+- speaking.cancel
+- vote.submit
+- admin.topic.next
+- admin.topic.reorder
+- admin.vote.open
+- admin.vote.close
+- admin.timer.start
+- admin.timer.pause
+- admin.timer.reset
+
+## Buenas prÃ¡cticas
+- payloads mÃ­nimos y tipados,
+- acknowledgements en acciones crÃ­ticas,
+- validaciÃ³n de permisos en cada evento entrante,
+- no enviar datos sensibles innecesarios a participantes,
+- evitar floods de eventos,
+- resync automÃ¡tico tras reconexiÃ³n.
+
+## Riesgos a prevenir
+- doble voto por reconexiÃ³n o doble click,
+- desincronizaciÃ³n de cola de oradores,
+- timers divergentes,
+- mostrar resultados antes de cerrar la votaciÃ³n,
+- fugas de detalle de voto a roles no autorizados.

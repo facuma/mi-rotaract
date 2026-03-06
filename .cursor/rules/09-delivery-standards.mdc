@@ -1,0 +1,48 @@
+﻿---
+description: EstÃ¡ndares de entrega, documentaciÃ³n y calidad
+globs:
+alwaysApply: true
+---
+
+# EstÃ¡ndares de entrega
+
+## Cada feature debe entregar
+- objetivo,
+- alcance,
+- criterios de aceptaciÃ³n,
+- archivos impactados,
+- riesgos,
+- testing mÃ­nimo.
+
+## Convenciones
+- nombres consistentes,
+- commits pequeÃ±os,
+- archivos cortos cuando sea posible,
+- comentarios solo donde agreguen contexto real,
+- no introducir complejidad accidental.
+
+## Definition of Done
+Una tarea se considera terminada cuando:
+- compila,
+- tiene tipado correcto,
+- respeta reglas del dominio,
+- contempla estados vacÃ­os y errores,
+- incluye validaciÃ³n bÃ¡sica,
+- deja trazabilidad si la acciÃ³n es crÃ­tica,
+- tiene cobertura de pruebas acorde al riesgo.
+
+## Prioridad de calidad
+1. correcciÃ³n funcional,
+2. seguridad,
+3. trazabilidad,
+4. mantenibilidad,
+5. performance,
+6. refinamiento visual.
+
+## Forma de responder esperada para Cursor
+Cuando propongas cambios:
+- primero resumÃ­ el objetivo,
+- luego el plan,
+- luego los archivos a crear o modificar,
+- despuÃ©s el cÃ³digo,
+- y al final checklist de validaciÃ³n.

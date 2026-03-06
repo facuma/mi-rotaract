@@ -1,0 +1,68 @@
+﻿---
+description: EstÃ¡ndares backend para NestJS
+globs:
+  - apps/api/**
+alwaysApply: false
+---
+
+# Reglas backend NestJS
+
+## Objetivo
+Construir un backend modular, auditable y preparado para tiempo real.
+
+## Estructura sugerida por mÃ³dulo
+```text
+/module
+  controller.ts
+  service.ts
+  gateway.ts (si aplica)
+  dto/
+  entities/ o mappers/
+  policies/
+  tests/
+```
+
+## Convenciones
+- DTOs validados con class-validator,
+- servicios con responsabilidad concreta,
+- controladores delgados,
+- gateways sin lÃ³gica pesada,
+- reglas de autorizaciÃ³n en guards o policies reutilizables,
+- errores de dominio claros.
+
+## Endpoints REST mÃ­nimos
+- auth/login
+- meetings CRUD
+- meetings/:id/start
+- meetings/:id/finish
+- meetings/:id/topics CRUD
+- meetings/:id/topics/reorder
+- meetings/:id/votations/open
+- meetings/:id/votations/:id/close
+- meetings/:id/speaking-queue/request
+- meetings/:id/speaking-queue/manage
+- meetings/:id/history
+- meetings/:id/export
+
+## Realtime
+- namespaces o rooms por meetingId,
+- eventos separados por dominio,
+- snapshot inicial del estado,
+- reconexiÃ³n segura,
+- autorizaciÃ³n antes de unirse a una room.
+
+## Calidad
+- unit tests para reglas crÃ­ticas,
+- integration tests para endpoints clave,
+- tests de concurrencia para votaciÃ³n,
+- logs estructurados,
+- auditorÃ­a persistida para eventos crÃ­ticos.
+
+## Eventos crÃ­ticos que deben auditarse
+- login,
+- creaciÃ³n/ediciÃ³n/eliminaciÃ³n de reuniÃ³n,
+- cambio de tema,
+- apertura/cierre de votaciÃ³n,
+- emisiÃ³n de voto,
+- modificaciÃ³n manual de cola,
+- inicio/pausa/finalizaciÃ³n de reuniÃ³n.

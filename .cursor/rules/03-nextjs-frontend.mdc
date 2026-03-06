@@ -1,0 +1,65 @@
+﻿---
+description: EstÃ¡ndares de frontend para Next.js
+globs:
+  - apps/web/**
+alwaysApply: false
+---
+
+# Reglas frontend Next.js
+
+## Objetivos
+La app web debe ser:
+- rÃ¡pida,
+- clara,
+- responsive,
+- usable desde celular en reuniones en vivo.
+
+## Recomendaciones
+- usar App Router,
+- segmentar por Ã¡reas `(public)`, `(participant)`, `(admin)`,
+- usar server components donde aporte,
+- usar client components solo cuando haya interactividad real,
+- formularios con validaciÃ³n estricta,
+- evitar sobrecargar la UI con informaciÃ³n secundaria.
+
+## PÃ¡ginas mÃ­nimas
+- login,
+- dashboard de reuniones para secretarÃ­a,
+- detalle de reuniÃ³n para secretarÃ­a,
+- sala en vivo de reuniÃ³n para secretarÃ­a,
+- sala en vivo de reuniÃ³n para participante,
+- historial de reuniones,
+- historial de votaciones.
+
+## Componentes principales
+- MeetingStatusCard
+- CurrentTopicPanel
+- SpeakerQueuePanel
+- VotePanel
+- VoteResultsPanel
+- MeetingTimer
+- SpeakingTurnTimer
+- AdminControlsBar
+- MeetingTopicsList
+- MeetingAuditTimeline
+
+## UX obligatoria
+- botones grandes y claros para votar,
+- confirmaciÃ³n antes de emitir voto,
+- feedback inmediato tras acciones crÃ­ticas,
+- estados vacÃ­os bien diseÃ±ados,
+- skeletons para carga,
+- colores accesibles,
+- foco especial en mÃ³vil vertical.
+
+## Estado y datos
+- las lecturas de estado persistente deben venir por API,
+- las actualizaciones en vivo deben llegar por socket,
+- ante reconnect se debe hacer resync con snapshot,
+- no confiar Ãºnicamente en el estado del socket para verdad final.
+
+## Prohibiciones
+- lÃ³gica de negocio compleja en componentes,
+- fetch duplicado e inconsistente,
+- toasts genÃ©ricos sin contexto,
+- modales innecesarios para acciones repetitivas.

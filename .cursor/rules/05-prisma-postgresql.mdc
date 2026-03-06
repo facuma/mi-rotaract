@@ -1,0 +1,55 @@
+﻿---
+description: Reglas de modelado con Prisma y PostgreSQL
+globs:
+  - prisma/**
+  - apps/api/**/prisma/**
+alwaysApply: false
+---
+
+# Reglas Prisma + PostgreSQL
+
+## Principios
+- nombres claros y consistentes,
+- enums explÃ­citos,
+- timestamps en entidades importantes,
+- relaciones modeladas segÃºn dominio real,
+- constraints para evitar duplicados lÃ³gicos.
+
+## Entidades principales esperadas
+- User
+- Club
+- Membership
+- Meeting
+- MeetingParticipant
+- AgendaTopic
+- VoteSession
+- Vote
+- SpeakingRequest
+- TimerSession
+- AuditLog
+
+## Constraints crÃ­ticas
+- un usuario no puede votar dos veces en la misma VoteSession,
+- una reuniÃ³n tiene un Ãºnico tema actual activo,
+- una SpeakingRequest activa pertenece a un usuario y reuniÃ³n,
+- las relaciones deben soportar historial.
+
+## Ãndices sugeridos
+- Meeting(status, scheduledAt)
+- AgendaTopic(meetingId, order)
+- VoteSession(meetingId, status)
+- Vote(voteSessionId, userId) unique
+- SpeakingRequest(meetingId, status, requestedAt)
+- AuditLog(meetingId, createdAt)
+
+## Reglas de persistencia
+- el backend es la fuente de verdad,
+- el socket nunca reemplaza la persistencia,
+- las transacciones deben usarse en operaciones crÃ­ticas,
+- cuando haya riesgo de carrera, proteger con constraint + manejo de error.
+
+## Migraciones
+- pequeÃ±as,
+- revisables,
+- con nombres descriptivos,
+- acompaÃ±adas por actualizaciÃ³n de tipos compartidos si impactan contratos.

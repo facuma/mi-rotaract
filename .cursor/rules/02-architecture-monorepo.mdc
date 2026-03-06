@@ -1,0 +1,78 @@
+﻿---
+description: Arquitectura objetivo del monorepo y principios de diseÃ±o
+globs:
+alwaysApply: true
+---
+
+# Arquitectura objetivo
+
+## Estructura recomendada
+```text
+/apps
+  /web
+  /api
+/packages
+  /shared-types
+  /ui
+  /config
+```
+
+## Responsabilidades
+### apps/web
+- interfaz de participantes,
+- interfaz de secretarÃ­a,
+- consumo de API REST,
+- suscripciÃ³n a WebSockets,
+- manejo de estado visual,
+- UX mobile-first.
+
+### apps/api
+- autenticaciÃ³n y autorizaciÃ³n,
+- CRUD de reuniones, temas, votaciones y turnos,
+- gateways WebSocket,
+- reglas de negocio,
+- persistencia vÃ­a Prisma,
+- exportaciones y auditorÃ­a.
+
+### packages/shared-types
+- DTOs compartidos,
+- enums de dominio,
+- tipos de eventos WebSocket,
+- contratos de respuesta.
+
+## Principios de arquitectura
+- separar lectura/escritura en servicios claros,
+- preferir mÃ³dulos por dominio,
+- no mezclar lÃ³gica de UI con lÃ³gica de negocio,
+- mantener contratos tipados entre frontend y backend,
+- auditar eventos crÃ­ticos,
+- diseÃ±ar para idempotencia en operaciones sensibles,
+- evitar dependencias circulares.
+
+## MÃ³dulos sugeridos en NestJS
+- auth
+- users
+- clubs
+- meetings
+- agenda-topics
+- speaking-queue
+- voting
+- timers
+- realtime
+- audit-log
+- exports
+
+## Principios de frontend
+- rutas claras por rol,
+- componentes pequeÃ±os,
+- estado local para UI efÃ­mera,
+- estado remoto sincronizado con React Query o alternativa similar,
+- socket centralizado,
+- manejo explÃ­cito de reconnect y resync.
+
+## Principios de base de datos
+- modelos auditables,
+- timestamps en entidades crÃ­ticas,
+- estados explÃ­citos con enums,
+- Ã­ndices en consultas de tiempo real,
+- soft delete solo donde agregue valor real.

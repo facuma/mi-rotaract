@@ -1,0 +1,53 @@
+﻿---
+description: Reglas de diseÃ±o UI UX mobile-first
+globs:
+  - apps/web/**
+alwaysApply: false
+---
+
+# Reglas UI/UX
+
+## Prioridad
+La experiencia principal sucede en celulares durante reuniones en vivo.
+
+## Principios
+- mÃ¡ximo 1 acciÃ³n principal por bloque visual,
+- lectura rÃ¡pida,
+- contraste alto,
+- jerarquÃ­a visual fuerte,
+- feedback inmediato,
+- evitar saturaciÃ³n de informaciÃ³n.
+
+## Pantalla del participante
+Debe priorizar:
+1. estado actual de la reuniÃ³n,
+2. tema actual,
+3. timer,
+4. botÃ³n de pedir palabra,
+5. bloque de votaciÃ³n si estÃ¡ abierta,
+6. cola de oradores.
+
+## Pantalla de secretarÃ­a
+Debe priorizar:
+1. control de flujo,
+2. tema actual y prÃ³ximos temas,
+3. control de timer,
+4. abrir/cerrar votaciÃ³n,
+5. ver resultados,
+6. cola de oradores,
+7. auditorÃ­a rÃ¡pida.
+
+## Estilo visual recomendado
+- institucional y profesional,
+- limpio,
+- moderno sin exceso de ornamento,
+- componentes grandes y tÃ¡ctiles,
+- tablas solo donde realmente aporten,
+- mÃ©tricas resumidas en cards.
+
+## Accesibilidad
+- estados no dependientes solo del color,
+- tamaÃ±os tÃ¡ctiles cÃ³modos,
+- soporte de teclado bÃ¡sico en desktop,
+- mensajes de error legibles,
+- componentes con etiquetas claras.

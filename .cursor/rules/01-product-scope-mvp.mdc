@@ -1,0 +1,67 @@
+﻿---
+description: Alcance funcional del MVP y lÃ­mites del primer release
+globs:
+alwaysApply: true
+---
+
+# Alcance del MVP
+
+## El MVP sÃ­ incluye
+### Para participantes
+- login seguro,
+- acceso a una reuniÃ³n asignada,
+- visualizaciÃ³n del tema actual,
+- visualizaciÃ³n de orador actual,
+- visualizaciÃ³n de siguiente orador,
+- timers visibles,
+- solicitud de palabra,
+- cola de oradores visible,
+- votaciÃ³n con opciones SÃ­ / No / AbstenciÃ³n,
+- confirmaciÃ³n previa al voto,
+- visualizaciÃ³n del resultado general cuando secretarÃ­a cierre la votaciÃ³n,
+- historial personal y general permitido por rol.
+
+### Para secretarÃ­a
+- CRUD de reuniones,
+- CRUD de temas,
+- reordenamiento de temas,
+- cambio de tema en vivo,
+- apertura y cierre de votaciones,
+- control de timers,
+- visualizaciÃ³n detallada de votos,
+- administraciÃ³n de cola de oradores,
+- historial de reuniones,
+- exportaciÃ³n base de resultados.
+
+## El MVP no incluye
+- videollamada integrada,
+- streaming propio,
+- gestiÃ³n financiera,
+- blogs autogestionables productivos,
+- app nativa mobile,
+- integraciones externas complejas,
+- automatizaciones por IA en producciÃ³n.
+
+## Criterios de aceptaciÃ³n del MVP
+- una reuniÃ³n puede crearse, configurarse y ponerse en estado "en vivo",
+- los participantes conectados ven el mismo estado casi en tiempo real,
+- los votos quedan persistidos y auditables,
+- no es posible votar dos veces en la misma instancia,
+- la secretarÃ­a puede moderar sin recargar la pÃ¡gina,
+- el historial puede consultarse luego de finalizada la reuniÃ³n.
+
+## Reglas de negocio base
+- un participante vota una sola vez por votaciÃ³n,
+- la identidad del voto detallado solo la ve secretarÃ­a,
+- el resultado agregado puede ser pÃºblico dentro de la reuniÃ³n,
+- la cola de oradores debe respetar orden de solicitud salvo intervenciÃ³n explÃ­cita de secretarÃ­a,
+- los timers deben seguir corriendo incluso si se excede el tiempo, marcando "destiempo".
+
+## Prioridad funcional
+1. autenticaciÃ³n y roles,
+2. reuniones y temas,
+3. realtime del estado de la reuniÃ³n,
+4. votaciÃ³n,
+5. solicitud de palabra,
+6. historial,
+7. exportaciÃ³n bÃ¡sica.
