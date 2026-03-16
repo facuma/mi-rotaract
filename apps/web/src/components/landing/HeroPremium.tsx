@@ -11,14 +11,14 @@ export default function HeroPremium({ onCTA }: HeroPremiumProps) {
     <section className="relative overflow-hidden px-4 pt-16 pb-24 md:pt-24 md:pb-32">
       <div className="mx-auto max-w-4xl text-center">
         <p className="mb-4 text-sm font-medium uppercase tracking-wider text-primary">
-          Reuniones distritales
+          Plataforma distrital Rotaract
         </p>
         <h1 className="mb-6 text-4xl font-bold tracking-tight text-ink-900 md:text-5xl lg:text-6xl">
-          Digitaliza tus asambleas con votaciones en vivo y agenda ordenada
+          Todo tu distrito en una sola plataforma
         </h1>
         <p className="mx-auto mb-10 max-w-2xl text-lg text-ink-600">
-          Mi Rotaract centraliza la agenda, las votaciones y el historial de tus reuniones distritales.
-          Participantes y secretaría en la misma plataforma.
+          Reuniones, eventos, club, socios y desarrollo profesional. Mi Rotaract centraliza
+          la gestión distrital con votaciones en vivo, agenda ordenada y herramientas para cada rol.
         </p>
         <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
           <button

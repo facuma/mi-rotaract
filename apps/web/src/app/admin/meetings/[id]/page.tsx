@@ -5,7 +5,10 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { meetingsApi, topicsApi } from '@/lib/api';
 import { MeetingHeader } from '@/components/MeetingHeader';
+import { AttachmentsCard } from '@/components/attachments/AttachmentsCard';
+import { ATTACHMENT_CONFIG } from '@/lib/attachment-config';
 import { TopicListSortable } from '@/components/TopicListSortable';
+import { BulkImportModal } from '@/components/bulk-import';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -56,6 +59,7 @@ export default function MeetingDetailPage() {
   const [actioning, setActioning] = useState(false);
   const [newTopicTitle, setNewTopicTitle] = useState('');
   const [newTopicType, setNewTopicType] = useState('DISCUSSION');
+  const [bulkParticipantsOpen, setBulkParticipantsOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -245,10 +249,30 @@ export default function MeetingDetailPage() {
         </CardContent>
       </Card>
 
+      {meeting.status === 'DRAFT' && (
+        <AttachmentsCard
+          fetchKey={id}
+          title="Actas / Documentos"
+          list={() => meetingsApi.listAttachments(id)}
+          upload={(file) => meetingsApi.uploadAttachment(id, file)}
+          deleteAttachment={(attachmentId) =>
+            meetingsApi.deleteAttachment(id, attachmentId)
+          }
+          maxFiles={ATTACHMENT_CONFIG.meeting.maxFiles}
+          maxSizeBytes={ATTACHMENT_CONFIG.meeting.maxSizeMB * 1024 * 1024}
+          accept={ATTACHMENT_CONFIG.meeting.accept}
+        />
+      )}
+
       <Card>
-        <CardHeader>
-          <CardTitle>Participantes</CardTitle>
-          <CardDescription>Asignados a esta reunión.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Participantes</CardTitle>
+            <CardDescription>Asignados a esta reunión.</CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setBulkParticipantsOpen(true)}>
+            Importar CSV
+          </Button>
         </CardHeader>
         <CardContent>
           {meeting.participants?.length ? (
@@ -265,6 +289,16 @@ export default function MeetingDetailPage() {
           ) : (
             <p className="text-sm text-muted-foreground">Sin participantes asignados.</p>
           )}
+
+          <BulkImportModal
+            isOpen={bulkParticipantsOpen}
+            onClose={() => setBulkParticipantsOpen(false)}
+            title="Importar participantes"
+            description="Subí un archivo CSV con emails de usuarios existentes. Usá UTF-8."
+            onDownloadTemplate={() => meetingsApi.downloadParticipantsBulkTemplate(id)}
+            onImport={(file, mode) => meetingsApi.bulkImportParticipants(id, file, mode)}
+            onSuccess={refreshMeeting}
+          />
         </CardContent>
       </Card>
     </div>

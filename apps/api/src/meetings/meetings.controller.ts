@@ -1,14 +1,23 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
+  Delete,
+  Query,
+  Req,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
 import { Role } from '@prisma/client';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
@@ -18,11 +27,15 @@ import { AssignParticipantsDto } from './dto/assign-participants.dto';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
 import { UpdateMeetingDto } from './dto/update-meeting.dto';
 import { MeetingsService } from './meetings.service';
+import { AttachmentsService } from '../attachments/attachments.service';
 
 @Controller('meetings')
 @UseGuards(AuthGuard('jwt'))
 export class MeetingsController {
-  constructor(private readonly meetingsService: MeetingsService) {}
+  constructor(
+    private readonly meetingsService: MeetingsService,
+    private readonly attachmentsService: AttachmentsService,
+  ) {}
 
   @Post()
   @UseGuards(RolesGuard)
@@ -35,6 +48,29 @@ export class MeetingsController {
   @Get()
   findAll(@CurrentUser() user: CurrentUserPayload) {
     return this.meetingsService.findAll(user.id, user.role as Role);
+  }
+
+  @Get('bulk/template')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY)
+  getBulkTemplate(@Res({ passthrough: false }) res: import('express').Response) {
+    const { buffer, filename } = this.meetingsService.getBulkTemplate();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
+  @Post('bulk')
+  @HttpCode(207)
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY)
+  @UseInterceptors(FileInterceptor('file'))
+  async bulkImport(
+    @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file: Express.Multer.File,
+    @Query('mode') mode?: 'partial' | 'strict',
+  ) {
+    return this.meetingsService.bulkImport(file, user.id, mode);
   }
 
   @Get(':id')
@@ -89,6 +125,34 @@ export class MeetingsController {
     return this.meetingsService.schedule(id, user.id);
   }
 
+  @Get(':id/participants/bulk/template')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY)
+  async getParticipantsBulkTemplate(
+    @Param('id') id: string,
+    @Res({ passthrough: false }) res: import('express').Response,
+  ) {
+    const { buffer, filename } =
+      await this.meetingsService.getParticipantsBulkTemplate(id);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
+  @Post(':id/participants/bulk')
+  @HttpCode(207)
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY)
+  @UseInterceptors(FileInterceptor('file'))
+  async bulkImportParticipants(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file: Express.Multer.File,
+    @Query('mode') mode?: 'partial' | 'strict',
+  ) {
+    return this.meetingsService.bulkImportParticipants(id, file, user.id, mode);
+  }
+
   @Post(':id/participants')
   @UseGuards(RolesGuard)
   @Roles(Role.SECRETARY, Role.PRESIDENT)
@@ -99,5 +163,47 @@ export class MeetingsController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.meetingsService.assignParticipants(id, dto, user.id);
+  }
+
+  @Get(':id/attachments')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  listAttachments(@Param('id') id: string) {
+    return this.attachmentsService.list('meeting', id);
+  }
+
+  @Post(':id/attachments')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadAttachment(
+    @Param('id') id: string,
+    @Req() req: { clubId?: string },
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Archivo requerido (campo "file")');
+    }
+    return this.attachmentsService.upload('meeting', id, file, user.id, {
+      clubId: req.clubId,
+      role: user.role as Role,
+    });
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  deleteAttachment(
+    @Param('id') meetingId: string,
+    @Param('attachmentId') attachmentId: string,
+    @Req() req: { clubId?: string },
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.attachmentsService.delete(attachmentId, {
+      clubId: req.clubId,
+      role: user.role as Role,
+      actorUserId: user.id,
+    });
   }
 }

@@ -4,9 +4,9 @@ import React from 'react';
 
 const steps = [
   { num: '1', title: 'Accede con tu cuenta', text: 'Inicia sesión con las credenciales que te haya dado tu distrito.' },
-  { num: '2', title: 'Entra a la reunión', text: 'Participantes ven la lista de reuniones; secretaría crea y gestiona las asambleas.' },
-  { num: '3', title: 'Sigue la agenda', text: 'Temas ordenados, votaciones cuando se abran y timers para cada ítem.' },
-  { num: '4', title: 'Consulta el historial', text: 'Revisa reuniones pasadas, resultados de votaciones y trazabilidad.' },
+  { num: '2', title: 'Elige tu módulo', text: 'Reuniones, eventos, club, socios o desarrollo profesional según tu rol.' },
+  { num: '3', title: 'Gestiona y participa', text: 'Agenda, votaciones, timers, eventos. Todo en tiempo real.' },
+  { num: '4', title: 'Consulta cuando quieras', text: 'Historial, resultados, informes y trazabilidad centralizada.' },
 ];
 
 export default function HowItWorksSection() {
@@ -17,7 +17,7 @@ export default function HowItWorksSection() {
           Cómo funciona
         </h2>
         <p className="mx-auto mb-16 max-w-2xl text-center text-ink-600">
-          En cuatro pasos estás dentro del flujo de la reunión.
+          En cuatro pasos estás usando la plataforma.
         </p>
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
           {steps.map((s) => (

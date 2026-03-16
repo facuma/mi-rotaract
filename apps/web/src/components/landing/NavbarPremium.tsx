@@ -18,6 +18,9 @@ export default function NavbarPremium({ onCTA }: NavbarPremiumProps) {
           <span>Mi Rotaract</span>
         </Link>
         <div className="hidden items-center gap-8 md:flex">
+          <a href="#modules" className="text-sm text-ink-600 hover:text-ink-900">
+            Módulos
+          </a>
           <a href="#features" className="text-sm text-ink-600 hover:text-ink-900">
             Funciones
           </a>
@@ -52,6 +55,9 @@ export default function NavbarPremium({ onCTA }: NavbarPremiumProps) {
       {open && (
         <div className="border-t border-zinc-200 bg-surface-0 px-4 py-4 md:hidden">
           <div className="flex flex-col gap-2">
+            <a href="#modules" className="py-2 text-ink-600 hover:text-ink-900" onClick={() => setOpen(false)}>
+              Módulos
+            </a>
             <a href="#features" className="py-2 text-ink-600 hover:text-ink-900" onClick={() => setOpen(false)}>
               Funciones
             </a>

@@ -21,10 +21,10 @@ export default function CurvedSection({ onCTA }: CurvedSectionProps) {
       </div>
       <div className="relative mx-auto max-w-3xl text-center">
         <h2 className="mb-6 text-3xl font-bold text-white md:text-4xl">
-          ¿Listo para tu próxima reunión?
+          ¿Listo para gestionar tu distrito?
         </h2>
         <p className="mb-10 text-lg text-blue-100">
-          Accede con tu cuenta y únete a las reuniones de tu distrito o gestiona la agenda como secretaría.
+          Accede con tu cuenta. Reuniones, eventos, club, socios y desarrollo profesional en un solo lugar.
         </p>
         <button
           onClick={onCTA}

@@ -1,0 +1,80 @@
+import Link from 'next/link';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+
+type Item = {
+  id: string;
+  title: string;
+  startsAt: string;
+  type: string;
+  href: string;
+};
+
+type Props = {
+  items: Item[];
+  emptyMessage: string;
+};
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export function WidgetUpcomingEvents({ items, emptyMessage }: Props) {
+  if (items.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Próximos eventos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <EmptyState
+            title={emptyMessage}
+            action={
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/eventos">Explorar eventos</Link>
+              </Button>
+            }
+            variant="compact"
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-base">Próximos eventos</CardTitle>
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/eventos">Ver todos</Link>
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-2">
+          {items.map((e) => (
+            <li
+              key={e.id}
+              className="flex flex-col gap-0.5 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-muted/50"
+            >
+              <Button variant="link" className="h-auto p-0 font-medium text-left" asChild>
+                <Link href={e.href}>{e.title}</Link>
+              </Button>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{formatDate(e.startsAt)}</span>
+                <span>{e.type}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}

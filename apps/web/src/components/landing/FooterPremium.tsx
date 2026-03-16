@@ -13,6 +13,7 @@ export default function FooterPremium() {
             <span>Mi Rotaract</span>
           </div>
           <div className="flex flex-wrap justify-center gap-6 text-sm text-ink-600">
+            <a href="#modules" className="hover:text-ink-900">Módulos</a>
             <a href="#features" className="hover:text-ink-900">Funciones</a>
             <a href="#how-it-works" className="hover:text-ink-900">Cómo funciona</a>
             <a href="#faq" className="hover:text-ink-900">FAQ</a>
@@ -20,7 +21,7 @@ export default function FooterPremium() {
           </div>
         </div>
         <p className="mt-8 text-center text-sm text-ink-500">
-          Reuniones distritales digitalizadas. © {new Date().getFullYear()} Mi Rotaract.
+          Plataforma distrital Rotaract. © {new Date().getFullYear()} Mi Rotaract.
         </p>
       </div>
     </footer>

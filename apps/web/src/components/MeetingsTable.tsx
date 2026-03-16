@@ -9,8 +9,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 type Meeting = {
   id: string;
@@ -19,24 +20,6 @@ type Meeting = {
   status: string;
   scheduledAt?: string | null;
   club?: { name: string };
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  DRAFT: 'Borrador',
-  SCHEDULED: 'Programada',
-  LIVE: 'En vivo',
-  PAUSED: 'Pausada',
-  FINISHED: 'Finalizada',
-  ARCHIVED: 'Archivada',
-};
-
-const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  DRAFT: 'secondary',
-  SCHEDULED: 'outline',
-  LIVE: 'default',
-  PAUSED: 'secondary',
-  FINISHED: 'outline',
-  ARCHIVED: 'secondary',
 };
 
 export function MeetingsTable({
@@ -59,12 +42,13 @@ export function MeetingsTable({
       </TableHeader>
       <TableBody>
         {meetings.map((m) => (
-          <TableRow key={m.id}>
+          <TableRow
+            key={m.id}
+            className={cn(m.status === 'LIVE' && 'border-l-4 border-l-primary')}
+          >
             <TableCell className="font-medium">{m.title}</TableCell>
             <TableCell>
-              <Badge variant={STATUS_VARIANT[m.status] ?? 'secondary'}>
-                {STATUS_LABEL[m.status] ?? m.status}
-              </Badge>
+              <StatusBadge status={m.status} />
             </TableCell>
             <TableCell className="text-muted-foreground">
               {m.scheduledAt

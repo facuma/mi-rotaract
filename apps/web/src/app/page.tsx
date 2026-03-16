@@ -35,11 +35,7 @@ export default function LandingPageClient() {
   useEffect(() => {
     if (isPWA && !isLoading) {
       if (user) {
-        if (user.role === 'SECRETARY' || user.role === 'PRESIDENT') {
-          router.replace('/admin/meetings');
-        } else {
-          router.replace('/meetings');
-        }
+        router.replace('/dashboard');
       } else {
         router.replace('/login');
       }
@@ -58,12 +54,12 @@ export default function LandingPageClient() {
         <HeroPremium onCTA={openAuthModal} />
         <SocialProof />
         <ManifiestoSection />
+        <UseCasesSection />
         <FeaturesGrid />
         <CurvedSection onCTA={openAuthModal} />
         <HowItWorksSection />
         <BenefitsSection />
         <IntegrationsSection />
-        <UseCasesSection />
         <TestimonialsSection />
         <FAQSection />
         <CTAFinalSection onCTA={openAuthModal} />

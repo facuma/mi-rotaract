@@ -3,10 +3,10 @@
 import React from 'react';
 
 const benefits = [
-  { title: 'Menos papeles', desc: 'Todo queda registrado en la plataforma.' },
-  { title: 'Votaciones claras', desc: 'Un voto por persona, resultados públicos.' },
-  { title: 'Agenda visible', desc: 'Todos ven el orden del día y los tiempos.' },
-  { title: 'Historial consultable', desc: 'Auditoría y transparencia para el distrito.' },
+  { title: 'Todo digital', desc: 'Reuniones, eventos, club y socios en una sola plataforma.' },
+  { title: 'Transparencia', desc: 'Votaciones claras, un voto por persona, resultados públicos.' },
+  { title: 'Orden visible', desc: 'Agenda, calendario y estados en un solo lugar.' },
+  { title: 'Historial y auditoría', desc: 'Trazabilidad y consulta para todo el distrito.' },
 ];
 
 export default function BenefitsSection() {

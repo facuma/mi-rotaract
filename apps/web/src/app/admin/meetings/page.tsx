@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { meetingsApi } from '@/lib/api';
 import { MeetingsTable } from '@/components/MeetingsTable';
+import { BulkImportModal } from '@/components/bulk-import';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,8 +22,18 @@ export default function AdminMeetingsPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [bulkOpen, setBulkOpen] = useState(false);
+
+  const loadMeetings = () => {
+    meetingsApi
+      .list()
+      .then((m) => setMeetings(m as Meeting[]))
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
+    setLoading(true);
     meetingsApi
       .list()
       .then((m) => setMeetings(m as Meeting[]))
@@ -69,13 +80,34 @@ export default function AdminMeetingsPage() {
             Gestioná las reuniones distritales y su agenda.
           </CardDescription>
         </div>
-        <Button asChild>
-          <Link href="/admin/meetings/new">Nueva reunión</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setBulkOpen(true)}>
+            Importar CSV
+          </Button>
+          <Button asChild>
+            <Link href="/admin/meetings/new">Nueva reunión</Link>
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <MeetingsTable meetings={meetings} />
       </CardContent>
+      <BulkImportModal
+        isOpen={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        title="Importar reuniones"
+        description="Subí un archivo CSV con la plantilla. Usá UTF-8."
+        onDownloadTemplate={meetingsApi.downloadBulkTemplate}
+        onImport={(file, mode) => meetingsApi.bulkImport(file, mode)}
+        onSuccess={() => {
+          setLoading(true);
+          meetingsApi
+            .list()
+            .then((m) => setMeetings(m as Meeting[]))
+            .catch((e) => setError(e.message))
+            .finally(() => setLoading(false));
+        }}
+      />
     </Card>
   );
 }

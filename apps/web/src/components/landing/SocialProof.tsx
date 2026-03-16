@@ -4,10 +4,11 @@ import React from 'react';
 
 export default function SocialProof() {
   const items = [
-    'Reuniones en vivo',
-    'Votaciones seguras',
-    'Agenda y timers',
-    'Historial y auditoría',
+    'Reuniones',
+    'Eventos',
+    'Mi Club',
+    'Mis Socios',
+    'Desarrollo profesional',
   ];
 
   return (

@@ -14,7 +14,7 @@ export default function CTAFinalSection({ onCTA }: CTAFinalSectionProps) {
           Únete a Mi Rotaract
         </h2>
         <p className="mb-10 text-lg text-blue-100">
-          Accede con tu cuenta y participa en las reuniones de tu distrito o gestiona la agenda como secretaría.
+          Accede con tu cuenta. Reuniones, eventos, club, socios y desarrollo profesional en un solo lugar.
         </p>
         <button
           onClick={onCTA}

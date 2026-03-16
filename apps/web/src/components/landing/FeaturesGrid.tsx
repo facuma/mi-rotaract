@@ -4,34 +4,34 @@ import React from 'react';
 
 const features = [
   {
-    title: 'Agenda y temas',
-    description: 'Ordena los temas de la reunión, define tipos (discusión, votación, informativo) y tiempos estimados.',
-    icon: '📋',
-  },
-  {
     title: 'Votaciones en vivo',
-    description: 'Los participantes votan Sí, No o Abstención. Un voto por persona. Resultados en tiempo real.',
+    description: 'Sí, No o Abstención. Un voto por persona. Resultados en tiempo real y trazables.',
     icon: '🗳️',
   },
   {
-    title: 'Solicitud de palabra',
-    description: 'Cola de oradores y control desde secretaría. Timer de intervención para cada turno.',
-    icon: '🎤',
-  },
-  {
-    title: 'Timers',
-    description: 'Timer por tema y por orador. Avisos cuando se excede el tiempo y registro de incidencias.',
+    title: 'Agenda y timers',
+    description: 'Temas ordenados, tiempos estimados y control de turnos en reuniones y talleres.',
     icon: '⏱️',
   },
   {
-    title: 'Historial',
-    description: 'Reuniones pasadas, temas tratados, resultados de votaciones y trazabilidad para auditoría.',
+    title: 'Roles y permisos',
+    description: 'Participantes, presidentes y secretaría con acceso según su rol. Seguridad auditada.',
+    icon: '👥',
+  },
+  {
+    title: 'Historial y auditoría',
+    description: 'Reuniones pasadas, resultados de votaciones y trazabilidad para el distrito.',
     icon: '📁',
   },
   {
-    title: 'Roles',
-    description: 'Participantes ven solo sus reuniones. Secretaría y presidente gestionan agenda y votaciones.',
-    icon: '👥',
+    title: 'Calendario de eventos',
+    description: 'Eventos distritales, formaciones y encuentros en un solo calendario.',
+    icon: '📆',
+  },
+  {
+    title: 'Todo en un lugar',
+    description: 'Club, socios, proyectos y desarrollo profesional. PWA disponible para móvil.',
+    icon: '📲',
   },
 ];
 
@@ -43,7 +43,7 @@ export default function FeaturesGrid() {
           Todo lo que necesitas en una sola plataforma
         </h2>
         <p className="mx-auto mb-16 max-w-2xl text-center text-ink-600">
-          Diseñado para el flujo real de una asamblea distrital.
+          Pensado para el flujo real del distrito Rotaract.
         </p>
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => (

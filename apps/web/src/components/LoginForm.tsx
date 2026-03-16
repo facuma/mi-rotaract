@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,19 +18,27 @@ import {
 export function LoginForm() {
   const { login } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('reset') === 'ok') {
+      setSuccess('Contraseña restablecida. Ya podés iniciar sesión.');
+    }
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const u = await login(email, password);
-      if (u.role === 'SECRETARY' || u.role === 'PRESIDENT') router.replace('/admin/meetings');
-      else router.replace('/meetings');
+      await login(email, password);
+      const from = searchParams.get('from');
+      router.replace(from || '/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión');
     } finally {
@@ -47,6 +56,9 @@ export function LoginForm() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <p className="text-sm text-destructive font-medium">{error}</p>
+          )}
+          {success && (
+            <p className="text-sm text-green-600 font-medium">{success}</p>
           )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -75,6 +87,17 @@ export function LoginForm() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Entrando...' : 'Entrar'}
           </Button>
+          <p className="text-center text-sm text-muted-foreground">
+            <Link href="/recuperar-contrasena" className="text-primary underline hover:no-underline">
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </p>
+          <p className="text-center text-sm text-muted-foreground">
+            ¿No tenés cuenta?{' '}
+            <Link href="/register" className="text-primary underline hover:no-underline">
+              Registrarse
+            </Link>
+          </p>
         </form>
       </CardContent>
     </Card>
