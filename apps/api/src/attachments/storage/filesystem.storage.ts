@@ -16,7 +16,7 @@ export class FilesystemStorageAdapter implements StorageAdapter {
   }
 
   async upload(params: UploadParams): Promise<void> {
-    const { key, body, contentType: _ } = params;
+    const { key, body } = params;
     const fullPath = path.join(this.uploadDir, key);
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
     await fs.writeFile(fullPath, body);
@@ -35,8 +35,10 @@ export class FilesystemStorageAdapter implements StorageAdapter {
     const fullPath = path.join(this.uploadDir, key);
     try {
       await fs.access(fullPath);
-    } catch {
-      throw new Error('Archivo no encontrado en almacenamiento');
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Error desconocido';
+      throw new Error(`Archivo no encontrado en almacenamiento: ${message}`);
     }
     const { createReadStream } = await import('fs');
     return createReadStream(fullPath);

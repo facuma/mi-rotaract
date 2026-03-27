@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ReportStatus, ReportType } from '@prisma/client';
+import { ReportType } from '@prisma/client';
 import { QueryReportsDto } from './dto/query-reports.dto';
 import { UpdateReportDto } from './dto/update-report.dto';
 

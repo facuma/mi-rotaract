@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { meetingsApi } from '@/lib/api';
+import { useMeetingsQuery } from '@/lib/queries';
 import { MeetingsTable } from '@/components/MeetingsTable';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,19 +19,10 @@ type Meeting = {
 };
 
 export default function MyMeetingsPage() {
-  const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data, isLoading, error } = useMeetingsQuery();
+  const meetings = (data ?? []) as Meeting[];
 
-  useEffect(() => {
-    meetingsApi
-      .list()
-      .then((m) => setMeetings(m as Meeting[]))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
@@ -53,7 +43,9 @@ export default function MyMeetingsPage() {
     return (
       <Card className="border-destructive shadow-sm">
         <CardContent className="p-6">
-          <p className="text-sm font-medium text-destructive">{error}</p>
+          <p className="text-sm font-medium text-destructive">
+            {error instanceof Error ? error.message : 'No se pudo cargar reuniones.'}
+          </p>
         </CardContent>
       </Card>
     );

@@ -43,6 +43,14 @@ export class UpsertProfileDto {
 
   @IsOptional()
   @IsString()
+  educationJson?: string;
+
+  @IsOptional()
+  @IsString()
+  languagesJson?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(50)
   availability?: string;
 

@@ -8,7 +8,18 @@ import type { SearchTalentDto } from './dto/search-talent.dto';
 export class TalentService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async search(query: SearchTalentDto) {
+  async searchPublic(query: SearchTalentDto) {
+    return this.searchInternal(query, undefined);
+  }
+
+  async search(query: SearchTalentDto, viewer: CurrentUserPayload) {
+    return this.searchInternal(query, viewer);
+  }
+
+  private async searchInternal(
+    query: SearchTalentDto,
+    viewer?: CurrentUserPayload,
+  ) {
     const { q, clubId, profession, page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
 
@@ -75,14 +86,18 @@ export class TalentService {
                 { activeUntil: { gt: new Date() } },
               ],
             },
-            include: { club: { select: { id: true, name: true, code: true } } },
+            include: {
+              club: { select: { id: true, name: true, code: true } },
+            },
           },
         },
       }),
       this.prisma.user.count({ where }),
     ]);
 
-    const items = users.map((u) => this.toPublicCard(u));
+    const items = users.map((u) =>
+      this.toPublicCard(u, viewer),
+    );
     return {
       items,
       total,
@@ -114,7 +129,9 @@ export class TalentService {
     }
 
     const isOwnProfile = viewer.id === userId;
-    const isDistrital = viewer.role === Role.SECRETARY || viewer.role === Role.PRESIDENT;
+    const isDistrital =
+      viewer.role === Role.SECRETARY || viewer.role === Role.PRESIDENT;
+    const isCompany = viewer.role === Role.COMPANY;
 
     if (isOwnProfile) {
       return this.toFullProfile(user);
@@ -131,14 +148,15 @@ export class TalentService {
       throw new NotFoundException('Perfil incompleto');
     }
 
-    if (isDistrital) {
+    if (isDistrital || isCompany) {
       return this.toFullProfile(user);
     }
 
-    return this.toPublicCard(user);
+    return this.toPublicCard(user, viewer);
   }
 
-  private toPublicCard(user: {
+  private toPublicCard(
+    user: {
     id: string;
     fullName: string;
     email?: string;
@@ -149,10 +167,22 @@ export class TalentService {
       linkedInUrl: string | null;
       contactEmailPublic?: boolean;
     } | null;
-    memberships: Array<{
-      club: { id: string; name: string; code: string };
-    }>;
-  }) {
+      memberships: Array<{
+        club: { id: string; name: string; code: string };
+      }>;
+    },
+    viewer?: CurrentUserPayload,
+  ) {
+    const isDistrital =
+      viewer?.role === Role.SECRETARY || viewer?.role === Role.PRESIDENT;
+    const isOwnProfile = viewer?.id === user.id;
+    const isCompany = viewer?.role === Role.COMPANY;
+
+    const canSeeEmail =
+      !!user.profile?.contactEmailPublic &&
+      !!user.email &&
+      (isDistrital || isOwnProfile || isCompany);
+
     return {
       id: user.id,
       fullName: user.fullName,
@@ -161,7 +191,7 @@ export class TalentService {
       city: user.profile?.city ?? null,
       linkedInUrl: user.profile?.linkedInUrl ?? null,
       clubs: user.memberships.map((m) => m.club),
-      email: user.profile?.contactEmailPublic && user.email ? user.email : undefined,
+      email: canSeeEmail ? user.email : undefined,
     };
   }
 

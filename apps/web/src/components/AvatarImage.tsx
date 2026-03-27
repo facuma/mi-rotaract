@@ -12,34 +12,59 @@ type Props = {
   size?: number;
 };
 
+const avatarBlobUrlCache = new Map<string, string>();
+const avatarRequests = new Map<string, Promise<string>>();
+
+async function fetchAvatarBlobUrl(userId: string): Promise<string> {
+  const cached = avatarBlobUrlCache.get(userId);
+  if (cached) return cached;
+
+  const pending = avatarRequests.get(userId);
+  if (pending) return pending;
+
+  const promise = fetch(getAvatarUrl(userId), {
+    headers: getAttachmentDownloadHeaders(),
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error('No avatar');
+      return res.blob();
+    })
+    .then((blob) => {
+      const blobUrl = URL.createObjectURL(blob);
+      avatarBlobUrlCache.set(userId, blobUrl);
+      return blobUrl;
+    })
+    .finally(() => {
+      avatarRequests.delete(userId);
+    });
+
+  avatarRequests.set(userId, promise);
+  return promise;
+}
+
 export function AvatarImage({ userId, alt = 'Avatar', fallback, className, size = 96 }: Props) {
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
-  const blobRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     if (!userId) return;
+
     setError(false);
-    const url = getAvatarUrl(userId);
-    const headers = getAttachmentDownloadHeaders();
-    fetch(url, { headers })
-      .then((res) => {
-        if (!res.ok) throw new Error('No avatar');
-        return res.blob();
-      })
-      .then((blob) => {
-        const blobUrl = URL.createObjectURL(blob);
-        if (blobRef.current) URL.revokeObjectURL(blobRef.current);
-        blobRef.current = blobUrl;
+    setSrc(avatarBlobUrlCache.get(userId) ?? null);
+    fetchAvatarBlobUrl(userId)
+      .then((blobUrl) => {
+        if (!mountedRef.current) return;
         setSrc(blobUrl);
       })
-      .catch(() => setError(true));
+      .catch(() => {
+        if (!mountedRef.current) return;
+        setError(true);
+      });
+
     return () => {
-      if (blobRef.current) {
-        URL.revokeObjectURL(blobRef.current);
-        blobRef.current = null;
-      }
-      setSrc(null);
+      mountedRef.current = false;
     };
   }, [userId]);
 

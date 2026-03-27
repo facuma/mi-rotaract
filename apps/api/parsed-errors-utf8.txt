@@ -1,0 +1,30 @@
+﻿FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\attachments\storage\filesystem.storage.ts
+  L19:37 - @typescript-eslint/no-unused-vars: '_' is assigned a value but never used.
+FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\auth\auth.service.ts
+  L70:86 - @typescript-eslint/no-explicit-any: Unexpected any. Specify a different type.
+  L71:23 - @typescript-eslint/no-explicit-any: Unexpected any. Specify a different type.
+FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\club-reports\club-reports.controller.ts
+  L91:51 - @typescript-eslint/no-unused-vars: 'req' is defined but never used.
+FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\club-reports\club-reports.service.ts
+  L8:24 - @typescript-eslint/no-unused-vars: 'ReportType' is defined but never used.
+FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\clubs\clubs.service.ts
+  L10:28 - @typescript-eslint/no-unused-vars: 'BulkRowError' is defined but never used.
+FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\common\bulk\bulk-result.types.ts
+  L8:35 - @typescript-eslint/no-unused-vars: 'T' is defined but never used.
+FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\dashboard\dashboard.service.ts
+  L201:5 - @typescript-eslint/no-unused-vars: '_userId' is defined but never used.
+FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\district\clubs\district-clubs.service.ts
+  L1:22 - @typescript-eslint/no-unused-vars: 'NotFoundException' is defined but never used.
+FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\district\committees\committees.controller.ts
+  L12:3 - @typescript-eslint/no-unused-vars: 'Req' is defined but never used.
+FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\district\reports\reports.service.ts
+  L3:10 - @typescript-eslint/no-unused-vars: 'ReportStatus' is defined but never used.
+FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\events\events.service.ts
+  L9:23 - @typescript-eslint/no-unused-vars: 'EventType' is defined but never used.
+FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\meetings\dto\create-meeting.dto.ts
+  L1:32 - @typescript-eslint/no-unused-vars: 'IsUUID' is defined but never used.
+FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\realtime\realtime.gateway.ts
+  L264:13 - @typescript-eslint/no-unused-vars: 'overtime' is assigned a value but never used.
+FILE: D:\rotaract-dev\mi-rotaract\apps\api\src\voting\voting.controller.ts
+  L51:68 - @typescript-eslint/no-unused-vars: 'user' is defined but never used.
+  L59:20 - @typescript-eslint/no-unused-vars: 'user' is defined but never used.

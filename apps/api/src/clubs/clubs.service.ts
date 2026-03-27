@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CsvParserService } from '../common/bulk/csv-parser.service';
-import { BulkImportResult, BulkRowError } from '../common/bulk/bulk-result.types';
+import { BulkImportResult } from '../common/bulk/bulk-result.types';
 import { CreateClubDto } from './dto/create-club.dto';
 import { UpdateClubDto } from './dto/update-club.dto';
 import { plainToInstance } from 'class-transformer';

@@ -8,8 +8,8 @@
     "start": "dotenv -e ../../.env -- nest start",
     "lint": "eslint src",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "dotenv -e ../../.env -- prisma migrate dev",
-    "prisma:migrate:resolve": "node scripts/migrate-resolve.js",
+    "prisma:migrate": "dotenv -e ../../.env.migrate -- prisma migrate dev",
+    "prisma:migrate:resolve": "dotenv -e ../../.env.migrate -- node scripts/migrate-resolve.js",
     "prisma:push": "dotenv -e ../../.env -- prisma db push",
     "prisma:seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts"
   },

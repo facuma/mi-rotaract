@@ -17,11 +17,21 @@ import { SearchTalentDto } from './dto/search-talent.dto';
 export class TalentController {
   constructor(private readonly talentService: TalentService) {}
 
+  /**
+   * Feed público/anónimo de talento para visitantes externos.
+   * No requiere autenticación y nunca expone datos de contacto.
+   */
+  @Get()
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  searchPublic(@Query() query: SearchTalentDto) {
+    return this.talentService.searchPublic(query);
+  }
+
   @Get('search')
   @UseGuards(AuthGuard('jwt'))
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  search(@Query() query: SearchTalentDto) {
-    return this.talentService.search(query);
+  search(@Query() query: SearchTalentDto, @CurrentUser() user: CurrentUserPayload) {
+    return this.talentService.search(query, user);
   }
 
   @Get(':userId')

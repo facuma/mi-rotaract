@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import { meetingsApi } from '@/lib/api';
+import { queryKeys, useMeetingsQuery } from '@/lib/queries';
 import { MeetingsTable } from '@/components/MeetingsTable';
 import { BulkImportModal } from '@/components/bulk-import';
 import { Button } from '@/components/ui/button';
@@ -19,29 +21,12 @@ type Meeting = {
 };
 
 export default function AdminMeetingsPage() {
-  const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [bulkOpen, setBulkOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { data, isLoading, error } = useMeetingsQuery();
+  const meetings = (data ?? []) as Meeting[];
 
-  const loadMeetings = () => {
-    meetingsApi
-      .list()
-      .then((m) => setMeetings(m as Meeting[]))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    setLoading(true);
-    meetingsApi
-      .list()
-      .then((m) => setMeetings(m as Meeting[]))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -65,7 +50,9 @@ export default function AdminMeetingsPage() {
     return (
       <Card className="border-destructive">
         <CardContent className="pt-6">
-          <p className="text-sm text-destructive font-medium">{error}</p>
+          <p className="text-sm text-destructive font-medium">
+            {error instanceof Error ? error.message : 'No se pudieron cargar reuniones.'}
+          </p>
         </CardContent>
       </Card>
     );
@@ -99,14 +86,7 @@ export default function AdminMeetingsPage() {
         description="Subí un archivo CSV con la plantilla. Usá UTF-8."
         onDownloadTemplate={meetingsApi.downloadBulkTemplate}
         onImport={(file, mode) => meetingsApi.bulkImport(file, mode)}
-        onSuccess={() => {
-          setLoading(true);
-          meetingsApi
-            .list()
-            .then((m) => setMeetings(m as Meeting[]))
-            .catch((e) => setError(e.message))
-            .finally(() => setLoading(false));
-        }}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: queryKeys.meetings })}
       />
     </Card>
   );

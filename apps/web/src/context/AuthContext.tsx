@@ -1,23 +1,30 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { AuthUser, LoginResponse } from '@mi-rotaract/shared-types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+if (!API_URL) {
+  throw new Error('NEXT_PUBLIC_API_URL no está configurada');
+}
 const TOKEN_KEY = 'mi_rotaract_token';
 const USER_KEY = 'mi_rotaract_user';
 
 type AuthContextType = {
   user: AuthUser | null;
   token: string | null;
+  isLoading: boolean;
+};
+
+type AuthActionsContextType = {
   login: (email: string, password: string) => Promise<AuthUser>;
   register: (fullName: string, email: string, password: string) => Promise<AuthUser>;
   logout: () => void;
   updateUser: (user: AuthUser) => void;
-  isLoading: boolean;
 };
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const AuthStateContext = createContext<AuthContextType | null>(null);
+const AuthActionsContext = createContext<AuthActionsContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -122,17 +129,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(USER_KEY, JSON.stringify(updated));
   }, []);
 
+  const stateValue = useMemo(
+    () => ({ user, token, isLoading }),
+    [user, token, isLoading],
+  );
+  const actionsValue = useMemo(
+    () => ({ login, register, logout, updateUser }),
+    [login, register, logout, updateUser],
+  );
+
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, updateUser, isLoading }}>
-      {children}
-    </AuthContext.Provider>
+    <AuthStateContext.Provider value={stateValue}>
+      <AuthActionsContext.Provider value={actionsValue}>{children}</AuthActionsContext.Provider>
+    </AuthStateContext.Provider>
   );
 }
 
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+export function useAuthState() {
+  const ctx = useContext(AuthStateContext);
+  if (!ctx) throw new Error('useAuthState must be used within AuthProvider');
   return ctx;
+}
+
+export function useAuthActions() {
+  const ctx = useContext(AuthActionsContext);
+  if (!ctx) throw new Error('useAuthActions must be used within AuthProvider');
+  return ctx;
+}
+
+export function useAuth() {
+  const state = useAuthState();
+  const actions = useAuthActions();
+  return { ...state, ...actions };
 }
 
 export function getStoredToken(): string | null {

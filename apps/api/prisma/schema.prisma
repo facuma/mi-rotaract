@@ -11,6 +11,7 @@ enum Role {
   PARTICIPANT
   SECRETARY
   PRESIDENT
+  COMPANY
 }
 
 enum ClubStatus {
@@ -96,6 +97,8 @@ model User {
   createdOpportunities  Opportunity[]
   memberProfiles        Member[]
   passwordResetTokens   PasswordResetToken[]
+  company               Company?
+  talentContactRequests TalentContactRequest[]
 }
 
 model PasswordResetToken {
@@ -166,6 +169,8 @@ model UserProfile {
   skills             String[] @default([])
   interests          String[] @default([])
   experienceJson     String?
+  educationJson      String?
+  languagesJson      String?
   availability       String?
   contactEmailPublic Boolean  @default(false)
   talentVisible      Boolean  @default(false)
@@ -590,4 +595,57 @@ model Attachment {
   uploadedAt     DateTime @default(now())
   user           User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
   @@index([entityType, entityId])
+}
+
+enum CompanyStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model Company {
+  id           String        @id @default(cuid())
+  name         String
+  country      String?
+  city         String?
+  industry     String?
+  size         String?
+  website      String?
+  contactName  String
+  contactEmail String
+  phone        String?
+  status       CompanyStatus @default(PENDING)
+  ownerUserId  String       @unique
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  owner        User         @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  contactRequests TalentContactRequest[]
+
+  @@index([status])
+}
+
+enum TalentContactRequestStatus {
+  NEW
+  SHARED_WITH_MEMBER
+  CLOSED
+}
+
+model TalentContactRequest {
+  id              String                     @id @default(cuid())
+  companyId       String
+  talentUserId    String
+  message         String?
+  status          TalentContactRequestStatus @default(NEW)
+  createdAt       DateTime                   @default(now())
+  handledAt       DateTime?
+  handledByUserId String?
+
+  company         Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  talentUser      User                       @relation(fields: [talentUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([talentUserId])
+  @@index([status, createdAt])
 }

@@ -7,7 +7,19 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.useWebSocketAdapter(new IoAdapter(app));
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
-  app.enableCors({ origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000' });
+  const allowedOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  app.enableCors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error('Not allowed by CORS'), false);
+    },
+    credentials: true,
+  });
   const port = process.env.PORT ?? 3001;
   await app.listen(port);
   console.log(`API listening on http://localhost:${port}`);

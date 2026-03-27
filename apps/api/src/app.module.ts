@@ -18,6 +18,7 @@ import { EventsModule } from './events/events.module';
 import { HistoryModule } from './history/history.module';
 import { MeetingsModule } from './meetings/meetings.module';
 import { OpportunitiesModule } from './opportunities/opportunities.module';
+import { CompaniesModule } from './companies/companies.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
 import { RealtimeModule } from './realtime/realtime.module';
@@ -38,7 +39,7 @@ import { VotingModule } from './voting/voting.module';
     PrismaModule,
     AuthModule,
     AuditModule,
-    ClubsModule, ClubModule, ClubReportsModule, DashboardModule, AttachmentsModule, ClubProjectsModule, ClubMembersModule, DistrictModule, EventsModule, HistoryModule, MeetingsModule, OpportunitiesModule, ProfileModule, RealtimeModule, SpeakingQueueModule, TalentModule, TimersModule, TopicsModule, VotingModule,
+    ClubsModule, ClubModule, ClubReportsModule, DashboardModule, AttachmentsModule, ClubProjectsModule, ClubMembersModule, DistrictModule, EventsModule, HistoryModule, MeetingsModule, OpportunitiesModule, ProfileModule, RealtimeModule, SpeakingQueueModule, TalentModule, TimersModule, TopicsModule, VotingModule, CompaniesModule,
   ],
   controllers: [AppController],
 })

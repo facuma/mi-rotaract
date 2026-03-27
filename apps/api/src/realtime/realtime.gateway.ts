@@ -261,7 +261,6 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const now = Date.now();
     const timers = activeTimers.map((t) => {
       const elapsed = Math.floor((now - t.startedAt.getTime()) / 1000);
-      const overtime = Math.max(0, elapsed - t.plannedDurationSec);
       return {
         id: t.id,
         type: t.type,

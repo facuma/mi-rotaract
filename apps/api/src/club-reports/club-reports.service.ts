@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ReportStatus, ReportType } from '@prisma/client';
+import { ReportStatus } from '@prisma/client';
 import { CreateClubReportDto } from './dto/create-club-report.dto';
 import { UpdateClubReportDto } from './dto/update-club-report.dto';
 import { QueryClubReportsDto } from './dto/query-club-reports.dto';

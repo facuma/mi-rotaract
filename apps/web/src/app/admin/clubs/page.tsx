@@ -1,12 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { clubsApi, type Club } from '@/lib/api';
 import { ClubsTable } from '@/components/ClubsTable';
 import { BulkImportModal } from '@/components/bulk-import';
-import { CreateClubModal } from '@/components/clubs/CreateClubModal';
-import { EditClubModal } from '@/components/clubs/EditClubModal';
-import { ConfirmDeleteClubModal } from '@/components/clubs/ConfirmDeleteClubModal';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -16,6 +14,19 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+
+const CreateClubModal = dynamic(
+  () => import('@/components/clubs/CreateClubModal').then((mod) => mod.CreateClubModal),
+);
+const EditClubModal = dynamic(
+  () => import('@/components/clubs/EditClubModal').then((mod) => mod.EditClubModal),
+);
+const ConfirmDeleteClubModal = dynamic(
+  () =>
+    import('@/components/clubs/ConfirmDeleteClubModal').then(
+      (mod) => mod.ConfirmDeleteClubModal,
+    ),
+);
 
 export default function AdminClubsPage() {
   const [clubs, setClubs] = useState<Club[]>([]);
@@ -58,8 +69,22 @@ export default function AdminClubsPage() {
     setEditingClub(null);
   };
 
-  const activeClubs = clubs.filter((club) => club.status === 'ACTIVE');
-  const inactiveClubs = clubs.filter((club) => club.status !== 'ACTIVE');
+  const { activeClubs, inactiveClubs, totalHabilitados, presentesEnReunion, quorumPct } = useMemo(() => {
+    const active = clubs.filter((club) => club.status === 'ACTIVE');
+    const inactive = clubs.filter((club) => club.status !== 'ACTIVE');
+    const habilitados = active.filter((club) => club.cuotaAldia && club.informeAlDia).length;
+    const presentes = active.filter(
+      (club) => club.cuotaAldia && club.informeAlDia && club.enabledForDistrictMeetings,
+    ).length;
+
+    return {
+      activeClubs: active,
+      inactiveClubs: inactive,
+      totalHabilitados: habilitados,
+      presentesEnReunion: presentes,
+      quorumPct: habilitados > 0 ? Math.round((presentes / habilitados) * 100) : 0,
+    };
+  }, [clubs]);
 
   const handleRequestDelete = (club: Club) => {
     setDeleteError('');
@@ -168,11 +193,48 @@ export default function AdminClubsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <ClubsTable
-            clubs={activeTab === 'active' ? activeClubs : inactiveClubs}
-            onEdit={openEdit}
-            onDelete={handleRequestDelete}
-          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <p className="text-sm font-medium text-muted-foreground">
+                Total habilitados
+              </p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">
+                {totalHabilitados}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Cuota e informe al día
+              </p>
+            </div>
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <p className="text-sm font-medium text-muted-foreground">
+                Presentes en reunión
+              </p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">
+                {presentesEnReunion}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Habilitados que participan
+              </p>
+            </div>
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <p className="text-sm font-medium text-muted-foreground">
+                Quórum
+              </p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">
+                {totalHabilitados > 0 ? `${quorumPct} %` : '—'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Presentes / habilitados
+              </p>
+            </div>
+          </div>
+          <div className="mt-6">
+            <ClubsTable
+              clubs={activeTab === 'active' ? activeClubs : inactiveClubs}
+              onEdit={openEdit}
+              onDelete={handleRequestDelete}
+            />
+          </div>
         </CardContent>
       </Card>
 

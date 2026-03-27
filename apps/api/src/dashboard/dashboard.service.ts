@@ -37,7 +37,7 @@ export class DashboardService {
   ) {
     const [alerts, meetings, events, shortcuts] = await Promise.all([
       this.getAlertsSecretary(),
-      this.getUpcomingMeetingsForSecretary(userId),
+      this.getUpcomingMeetingsForSecretary(),
       this.getUpcomingEvents(),
       Promise.resolve(this.getShortcutsSecretary()),
     ]);
@@ -197,9 +197,7 @@ export class DashboardService {
     };
   }
 
-  private async getUpcomingMeetingsForSecretary(
-    _userId: string,
-  ): Promise<UpcomingMeetingsData> {
+  private async getUpcomingMeetingsForSecretary(): Promise<UpcomingMeetingsData> {
     const now = new Date();
     const meetings = await this.prisma.meeting.findMany({
       where: {

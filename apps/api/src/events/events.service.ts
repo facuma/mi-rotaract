@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { EventStatus, EventType, Role } from '@prisma/client';
+import { EventStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CsvParserService } from '../common/bulk/csv-parser.service';
 import { BulkImportResult } from '../common/bulk/bulk-result.types';

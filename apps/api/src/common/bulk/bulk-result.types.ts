@@ -5,7 +5,7 @@ export interface BulkRowError {
   field?: string;
 }
 
-export interface BulkImportResult<T = unknown> {
+export interface BulkImportResult {
   total: number;
   created: number;
   failed: number;

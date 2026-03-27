@@ -1,0 +1,47 @@
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\attachments\storage\filesystem.storage.ts[24m[0m
+[0m  [2m19:37[22m  [31merror[39m  '_' is assigned a value but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\auth\auth.service.ts[24m[0m
+[0m  [2m70:86[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m71:23[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\club-reports\club-reports.controller.ts[24m[0m
+[0m  [2m91:51[22m  [31merror[39m  'req' is defined but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\club-reports\club-reports.service.ts[24m[0m
+[0m  [2m8:24[22m  [31merror[39m  'ReportType' is defined but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\clubs\clubs.service.ts[24m[0m
+[0m  [2m10:28[22m  [31merror[39m  'BulkRowError' is defined but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\common\bulk\bulk-result.types.ts[24m[0m
+[0m  [2m8:35[22m  [31merror[39m  'T' is defined but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\dashboard\dashboard.service.ts[24m[0m
+[0m  [2m201:5[22m  [31merror[39m  '_userId' is defined but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\district\clubs\district-clubs.service.ts[24m[0m
+[0m  [2m1:22[22m  [31merror[39m  'NotFoundException' is defined but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\district\committees\committees.controller.ts[24m[0m
+[0m  [2m12:3[22m  [31merror[39m  'Req' is defined but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\district\reports\reports.service.ts[24m[0m
+[0m  [2m3:10[22m  [31merror[39m  'ReportStatus' is defined but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\events\events.service.ts[24m[0m
+[0m  [2m9:23[22m  [31merror[39m  'EventType' is defined but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\meetings\dto\create-meeting.dto.ts[24m[0m
+[0m  [2m1:32[22m  [31merror[39m  'IsUUID' is defined but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\realtime\realtime.gateway.ts[24m[0m
+[0m  [2m264:13[22m  [31merror[39m  'overtime' is assigned a value but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[4mD:\rotaract-dev\mi-rotaract\apps\api\src\voting\voting.controller.ts[24m[0m
+[0m  [2m51:68[22m  [31merror[39m  'user' is defined but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m59:20[22m  [31merror[39m  'user' is defined but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[31m[1m✖ 16 problems (16 errors, 0 warnings)[22m[39m[0m
+[0m[31m[1m[22m[39m[0m

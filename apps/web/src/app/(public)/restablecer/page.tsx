@@ -1,10 +1,11 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ResetPasswordForm } from '@/components/ResetPasswordForm';
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
 
@@ -30,5 +31,13 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <ResetPasswordForm token={token} />
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }

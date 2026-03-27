@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { eventsApi, clubsApi } from '@/lib/api';
+import { useClubsListQuery, useEventsListQuery, useEventsUpcomingQuery, splitFeaturedEvents } from '@/lib/queries';
 import { useAuth } from '@/context/AuthContext';
 import { SectionHeader } from '@/components/layout/SectionHeader';
 import { EventCard } from '@/components/events/EventCard';
@@ -15,52 +15,33 @@ import type { Event, Club } from '@/lib/api';
 
 export default function EventosPage() {
   const { user } = useAuth();
-  const [upcoming, setUpcoming] = useState<Event[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [total, setTotal] = useState(0);
-  const [clubs, setClubs] = useState<Club[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<EventFiltersState>({});
 
   const canAdmin = user?.role === 'SECRETARY' || user?.role === 'PRESIDENT';
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [upcomingRes, listRes, clubsRes] = await Promise.all([
-        eventsApi.upcoming(3),
-        eventsApi.list({
-          upcoming: true,
-          page: 1,
-          limit: 20,
-          ...(filters.from && { from: filters.from }),
-          ...(filters.to && { to: filters.to }),
-          ...(filters.type && { type: filters.type }),
-          ...(filters.modality && { modality: filters.modality }),
-          ...(filters.clubId && { clubId: filters.clubId }),
-        }),
-        canAdmin ? clubsApi.list() : Promise.resolve([]),
-      ]);
-      setUpcoming(upcomingRes);
-      setEvents(listRes.data);
-      setTotal(listRes.total);
-      setClubs(clubsRes as Club[]);
-    } catch {
-      setEvents([]);
-      setUpcoming([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters.from, filters.to, filters.type, filters.modality, filters.clubId, canAdmin]);
+  const eventsParams = useMemo(
+    () => ({
+      upcoming: true as const,
+      page: 1,
+      limit: 20,
+      ...(filters.from && { from: filters.from }),
+      ...(filters.to && { to: filters.to }),
+      ...(filters.type && { type: filters.type }),
+      ...(filters.modality && { modality: filters.modality }),
+      ...(filters.clubId && { clubId: filters.clubId }),
+    }),
+    [filters.from, filters.to, filters.type, filters.modality, filters.clubId],
+  );
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const upcomingQuery = useEventsUpcomingQuery(3);
+  const listQuery = useEventsListQuery(eventsParams);
+  const clubsQuery = useClubsListQuery(false, canAdmin);
 
-  const heroIds = new Set(upcoming.map((e) => e.id));
-  const featured = upcoming.filter((e) => e.featured);
-  const others = events.filter((e) => !heroIds.has(e.id));
+  const upcoming = (upcomingQuery.data ?? []) as Event[];
+  const events = (listQuery.data?.data ?? []) as Event[];
+  const clubs = (clubsQuery.data ?? []) as Club[];
+  const loading = upcomingQuery.isLoading || listQuery.isLoading || (canAdmin && clubsQuery.isLoading);
+  const { featured, others } = useMemo(() => splitFeaturedEvents(upcoming, events), [upcoming, events]);
 
   if (!user) return null;
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { districtApi } from '@/lib/api';
@@ -18,7 +18,7 @@ type ReportItem = {
   districtPeriod: { id: string; name: string };
 };
 
-export default function DistrictInformesPage() {
+function DistrictInformesContent() {
   const searchParams = useSearchParams();
   const [periods, setPeriods] = useState<Period[]>([]);
   const [periodId, setPeriodId] = useState<string>('');
@@ -200,5 +200,13 @@ export default function DistrictInformesPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function DistrictInformesPage() {
+  return (
+    <Suspense fallback={<div>Cargando informes...</div>}>
+      <DistrictInformesContent />
+    </Suspense>
   );
 }

@@ -88,7 +88,7 @@ export class ClubReportsController {
 
   @Get(':id/attachments')
   @UseGuards(ClubAuthorityGuard)
-  listAttachments(@Param('id') id: string, @Req() req: { clubId: string }) {
+  listAttachments(@Param('id') id: string) {
     return this.attachmentsService.list('report', id);
   }
 

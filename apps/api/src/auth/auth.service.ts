@@ -35,32 +35,49 @@ export class AuthService {
   }
 
   async login(email: string, password: string) {
-    const user = await this.validateUser(email, password);
-    if (!user) {
+    try {
+      const user = await this.validateUser(email, password);
+      if (!user) {
+        await this.auditService.log({
+          entityType: 'auth',
+          action: 'auth.login.failed',
+          metadata: { attemptedEmail: email },
+        });
+        throw new UnauthorizedException('Credenciales inválidas');
+      }
       await this.auditService.log({
         entityType: 'auth',
-        action: 'auth.login.failed',
-        metadata: { attemptedEmail: email },
+        action: 'auth.login.success',
+        actorUserId: user.id,
+        entityId: user.id,
       });
-      throw new UnauthorizedException('Credenciales inválidas');
+      const payload = { sub: user.id, email: user.email, role: user.role };
+      const access_token = this.jwtService.sign(payload);
+      return {
+        access_token,
+        user: {
+          id: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+        },
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      const message =
+        error instanceof Error ? error.message : 'Error desconocido';
+      await this.auditService.log({
+        entityType: 'auth',
+        action: 'auth.login.error',
+        metadata: {
+          attemptedEmail: email,
+          errorMessage: message,
+        },
+      });
+      throw new UnauthorizedException(`Error al iniciar sesión: ${message}`);
     }
-    await this.auditService.log({
-      entityType: 'auth',
-      action: 'auth.login.success',
-      actorUserId: user.id,
-      entityId: user.id,
-    });
-    const payload = { sub: user.id, email: user.email, role: user.role };
-    const access_token = this.jwtService.sign(payload);
-    return {
-      access_token,
-      user: {
-        id: user.id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-      },
-    };
   }
 
   async register(fullName: string, email: string, password: string) {

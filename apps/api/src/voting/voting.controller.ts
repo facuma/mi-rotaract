@@ -48,7 +48,7 @@ export class VotingController {
   }
 
   @Get('vote/current')
-  getCurrent(@Param('meetingId') meetingId: string, @CurrentUser() user: CurrentUserPayload) {
+  getCurrent(@Param('meetingId') meetingId: string) {
     return this.votingService.getOpenSession(meetingId);
   }
 
@@ -56,7 +56,6 @@ export class VotingController {
   getResult(
     @Param('meetingId') meetingId: string,
     @Param('voteSessionId') voteSessionId: string,
-    @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.votingService.getResult(voteSessionId);
   }

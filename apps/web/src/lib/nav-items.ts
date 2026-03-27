@@ -22,7 +22,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: 'Distrito',
     icon: 'building2',
-    roles: ['SECRETARY'],
+    roles: ['SECRETARY', 'PRESIDENT'],
     children: [
       { href: '/admin/district/informes', label: 'Informes', icon: 'fileText' },
       { href: '/admin/district/clubes', label: 'Clubes', icon: 'users' },
@@ -33,7 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/admin/clubs',
     label: 'Clubes',
     icon: 'users',
-    roles: ['SECRETARY'],
+    roles: ['SECRETARY', 'PRESIDENT'],
   },
   {
     label: 'Mi Club',

@@ -32,7 +32,7 @@ import type { NavItem } from '@/lib/nav-items';
 import { Button } from '@/components/ui/button';
 import { AvatarImage } from '@/components/AvatarImage';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/context/AuthContext';
+import { useAuthActions } from '@/context/AuthContext';
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   home: Home,
@@ -172,7 +172,7 @@ function NavLinks({
 export function AppSidebar({ userRole, userFullName, userId }: { userRole: string; userFullName: string; userId: string }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout } = useAuth();
+  const { logout } = useAuthActions();
   const [mobileOpen, setMobileOpen] = useState(false);
   const items = getNavItemsForRole(userRole);
 

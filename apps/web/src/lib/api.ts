@@ -901,6 +901,82 @@ export const opportunitiesApi = {
     api<Opportunity>(`/opportunities/${id}/archive`, { method: 'PATCH' }),
 };
 
+/** CV experience item: company, role, dates, current job, description */
+export type CvExperience = {
+  company: string;
+  role: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
+  description?: string;
+};
+
+/** CV education item: institution, degree, field, dates */
+export type CvEducation = {
+  institution: string;
+  degree: string;
+  field?: string;
+  startDate?: string;
+  endDate?: string;
+};
+
+/** CV language item: language name and level (e.g. A1–C2, Nativo) */
+export type CvLanguage = {
+  language: string;
+  level: string;
+};
+
+export function parseExperienceJson(s: string | null | undefined): CvExperience[] {
+  if (s == null || s === '') return [];
+  try {
+    const parsed = JSON.parse(s) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (x): x is CvExperience =>
+        x != null &&
+        typeof x === 'object' &&
+        typeof (x as CvExperience).company === 'string' &&
+        typeof (x as CvExperience).role === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function parseEducationJson(s: string | null | undefined): CvEducation[] {
+  if (s == null || s === '') return [];
+  try {
+    const parsed = JSON.parse(s) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (x): x is CvEducation =>
+        x != null &&
+        typeof x === 'object' &&
+        typeof (x as CvEducation).institution === 'string' &&
+        typeof (x as CvEducation).degree === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function parseLanguagesJson(s: string | null | undefined): CvLanguage[] {
+  if (s == null || s === '') return [];
+  try {
+    const parsed = JSON.parse(s) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (x): x is CvLanguage =>
+        x != null &&
+        typeof x === 'object' &&
+        typeof (x as CvLanguage).language === 'string' &&
+        typeof (x as CvLanguage).level === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
 export type UserProfile = {
   id: string | null;
   userId: string;
@@ -912,6 +988,8 @@ export type UserProfile = {
   skills: string[];
   interests: string[];
   experienceJson?: string | null;
+  educationJson?: string | null;
+  languagesJson?: string | null;
   availability?: string | null;
   contactEmailPublic: boolean;
   talentVisible: boolean;
@@ -933,6 +1011,8 @@ export const profileApi = {
     skills: string[];
     interests: string[];
     experienceJson: string;
+    educationJson: string;
+    languagesJson: string;
     availability: string;
     contactEmailPublic: boolean;
     talentVisible: boolean;
@@ -995,6 +1075,59 @@ export const talentApi = {
     }>(`/talent/search${q ? `?${q}` : ''}`);
   },
   get: (userId: string) => api<TalentCard>(`/talent/${userId}`),
+};
+
+export const talentPublicApi = {
+  list: (params?: {
+    q?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const search = new URLSearchParams();
+    if (params?.q) search.set('q', params.q);
+    if (params?.page) search.set('page', String(params.page));
+    if (params?.limit) search.set('limit', String(params.limit));
+    const q = search.toString();
+    return api<{
+      items: TalentCard[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }>(`/talent${q ? `?${q}` : ''}`);
+  },
+};
+
+export const companiesApi = {
+  register: (body: {
+    name: string;
+    country?: string;
+    city?: string;
+    industry?: string;
+    size?: string;
+    website?: string;
+    contactName: string;
+    contactEmail: string;
+    phone?: string;
+    password: string;
+  }) => api<{ company: unknown }>('/companies/register', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+  getMe: () => api<unknown>('/companies/me'),
+  updateMe: (body: {
+    country?: string;
+    city?: string;
+    industry?: string;
+    size?: string;
+    website?: string;
+    contactName?: string;
+    contactEmail?: string;
+    phone?: string;
+  }) => api<unknown>('/companies/me', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  }),
 };
 
 export const historyApi = {
