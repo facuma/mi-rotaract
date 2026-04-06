@@ -124,16 +124,21 @@ export class SpeakingQueueService {
       },
     });
     if (!meeting) throw new NotFoundException('Reunión no encontrada');
-    const currentUser = meeting.currentSpeakerId
-      ? await this.prisma.user.findUnique({ where: { id: meeting.currentSpeakerId }, select: { id: true, fullName: true } })
-      : null;
-    const nextUser = meeting.nextSpeakerId
-      ? await this.prisma.user.findUnique({ where: { id: meeting.nextSpeakerId }, select: { id: true, fullName: true } })
-      : null;
+
+    // Fetch speakers in parallel
+    const speakerIds = [meeting.currentSpeakerId, meeting.nextSpeakerId].filter(Boolean) as string[];
+    const speakers = speakerIds.length > 0
+      ? await this.prisma.user.findMany({
+          where: { id: { in: speakerIds } },
+          select: { id: true, fullName: true },
+        })
+      : [];
+    const speakerMap = new Map(speakers.map((s) => [s.id, s]));
+
     return {
       queue: meeting.speakingRequests,
-      currentSpeaker: currentUser,
-      nextSpeaker: nextUser,
+      currentSpeaker: meeting.currentSpeakerId ? speakerMap.get(meeting.currentSpeakerId) ?? null : null,
+      nextSpeaker: meeting.nextSpeakerId ? speakerMap.get(meeting.nextSpeakerId) ?? null : null,
     };
   }
 }

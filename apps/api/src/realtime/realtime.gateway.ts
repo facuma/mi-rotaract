@@ -220,44 +220,54 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       ? meeting.topics.find((t) => t.id === meeting.currentTopicId)
       : null;
     const openVoteSession = meeting.voteSessions[0];
-    let ownVote: { voteSessionId: string; choice: string } | null = null;
-    if (userId && openVoteSession) {
-      const vote = await this.prisma.vote.findUnique({
-        where: { voteSessionId_userId: { voteSessionId: openVoteSession.id, userId } },
-      });
-      if (vote) ownVote = { voteSessionId: vote.voteSessionId, choice: vote.choice };
-    }
-    const lastClosedSession = await this.prisma.voteSession.findFirst({
-      where: { meetingId, status: 'CLOSED' },
-      orderBy: { closedAt: 'desc' },
-    });
-    let voteResult: {
-      voteSessionId: string;
-      topicId: string;
-      counts: { yes: number; no: number; abstain: number };
-      total: number;
-    } | null = null;
-    if (lastClosedSession) {
-      const counts = await this.prisma.vote.groupBy({
-        by: ['choice'],
-        where: { voteSessionId: lastClosedSession.id },
-        _count: true,
-      });
-      const map = Object.fromEntries(counts.map((c) => [c.choice, c._count]));
-      const yes = map.YES ?? 0;
-      const no = map.NO ?? 0;
-      const abstain = map.ABSTAIN ?? 0;
-      voteResult = {
-        voteSessionId: lastClosedSession.id,
-        topicId: lastClosedSession.topicId,
-        counts: { yes, no, abstain },
-        total: yes + no + abstain,
-      };
-    }
-    const activeTimers = await this.prisma.timerSession.findMany({
-      where: { meetingId, endedAt: null },
-      orderBy: { startedAt: 'desc' },
-    });
+
+    // Run all independent queries in parallel
+    const [ownVote, voteResult, activeTimers, currentSpeaker, nextSpeaker] = await Promise.all([
+      // Own vote
+      userId && openVoteSession
+        ? this.prisma.vote.findUnique({
+            where: { voteSessionId_userId: { voteSessionId: openVoteSession.id, userId } },
+          }).then((v) => v ? { voteSessionId: v.voteSessionId, choice: v.choice } : null)
+        : Promise.resolve(null),
+      // Vote result (only fetch if no open session)
+      !openVoteSession
+        ? this.prisma.voteSession.findFirst({
+            where: { meetingId, status: 'CLOSED' },
+            orderBy: { closedAt: 'desc' },
+          }).then(async (lastClosed) => {
+            if (!lastClosed) return null;
+            const counts = await this.prisma.vote.groupBy({
+              by: ['choice'],
+              where: { voteSessionId: lastClosed.id },
+              _count: true,
+            });
+            const map = Object.fromEntries(counts.map((c) => [c.choice, c._count]));
+            const yes = map.YES ?? 0;
+            const no = map.NO ?? 0;
+            const abstain = map.ABSTAIN ?? 0;
+            return {
+              voteSessionId: lastClosed.id,
+              topicId: lastClosed.topicId,
+              counts: { yes, no, abstain },
+              total: yes + no + abstain,
+            };
+          })
+        : Promise.resolve(null),
+      // Timers
+      this.prisma.timerSession.findMany({
+        where: { meetingId, endedAt: null },
+        orderBy: { startedAt: 'desc' },
+      }),
+      // Current speaker
+      meeting.currentSpeakerId
+        ? this.prisma.user.findUnique({ where: { id: meeting.currentSpeakerId }, select: { id: true, fullName: true } })
+        : Promise.resolve(null),
+      // Next speaker
+      meeting.nextSpeakerId
+        ? this.prisma.user.findUnique({ where: { id: meeting.nextSpeakerId }, select: { id: true, fullName: true } })
+        : Promise.resolve(null),
+    ]);
+
     const now = Date.now();
     const timers = activeTimers.map((t) => {
       const elapsed = Math.floor((now - t.startedAt.getTime()) / 1000);
@@ -273,12 +283,6 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         elapsedSec: elapsed,
       };
     });
-    const currentSpeaker = meeting.currentSpeakerId
-      ? await this.prisma.user.findUnique({ where: { id: meeting.currentSpeakerId }, select: { id: true, fullName: true } })
-      : null;
-    const nextSpeaker = meeting.nextSpeakerId
-      ? await this.prisma.user.findUnique({ where: { id: meeting.nextSpeakerId }, select: { id: true, fullName: true } })
-      : null;
     return {
       meeting: {
         id: meeting.id,

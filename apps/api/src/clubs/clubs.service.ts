@@ -262,7 +262,12 @@ export class ClubsService {
       where: { status: 'ACTIVE', enabledForDistrictMeetings: true },
       include: {
         memberships: {
-          where: { isPresident: true },
+          where: {
+            OR: [
+              { isPresident: true },
+              { user: { role: 'PRESIDENT' } },
+            ],
+          },
           select: { userId: true },
         },
       },
