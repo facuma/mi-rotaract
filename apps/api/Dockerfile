@@ -25,6 +25,8 @@ RUN pnpm install --frozen-lockfile && pnpm rebuild bcrypt
 # ============================================
 FROM node:20-slim AS build
 
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -59,7 +61,7 @@ RUN pnpm --filter api run build
 # ============================================
 FROM node:20-slim AS production
 
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl openssl && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -r nestjs && useradd -r -g nestjs nestjs
 
