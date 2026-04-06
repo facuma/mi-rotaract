@@ -137,7 +137,7 @@ export class AttachmentsService {
 
     const ext = path.extname(file.originalname) || '.bin';
     const id = crypto.randomUUID();
-    const storageKey = `${entityType}/${entityId}/${id}${ext}`;
+    const storageKey = `rotaract/${entityType}/${entityId}/${id}${ext}`;
     const fileName = sanitizeFileName(file.originalname);
 
     await this.storage.upload({
