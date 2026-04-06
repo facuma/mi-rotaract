@@ -156,6 +156,24 @@ export class VotingService {
     // Art. 45: For district meetings, one vote per club
     if (meeting.isDistrictMeeting) {
       clubId = participant.clubId;
+
+      // If participant has no clubId, try to resolve from membership
+      if (!clubId) {
+        const membership = await this.prisma.membership.findFirst({
+          where: { userId },
+          select: { clubId: true },
+        });
+        clubId = membership?.clubId ?? null;
+
+        // Update participant record for future votes
+        if (clubId) {
+          await this.prisma.meetingParticipant.update({
+            where: { meetingId_userId: { meetingId, userId } },
+            data: { clubId },
+          });
+        }
+      }
+
       if (!clubId) {
         throw new ForbiddenException('No se puede votar sin club asociado en reunión distrital');
       }

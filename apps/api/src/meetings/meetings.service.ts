@@ -353,15 +353,23 @@ export class MeetingsService {
       entityId: meeting.id,
     });
     const enabledClubs = await this.clubsService.findEnabledForDistrictMeetings();
-    const presidentUserIds = enabledClubs.flatMap((c) =>
-      c.memberships.map((m) => m.userId),
-    );
-    const uniqueUserIds = [...new Set(presidentUserIds)];
-    if (uniqueUserIds.length > 0) {
+    // Map each president to their club for per-club voting
+    const participants: { userId: string; clubId: string }[] = [];
+    const seenUserIds = new Set<string>();
+    for (const club of enabledClubs) {
+      for (const m of club.memberships) {
+        if (!seenUserIds.has(m.userId)) {
+          seenUserIds.add(m.userId);
+          participants.push({ userId: m.userId, clubId: club.id });
+        }
+      }
+    }
+    if (participants.length > 0) {
       await this.prisma.meetingParticipant.createMany({
-        data: uniqueUserIds.map((userId) => ({
+        data: participants.map((p) => ({
           meetingId: meeting.id,
-          userId,
+          userId: p.userId,
+          clubId: p.clubId,
           canVote: true,
         })),
       });
