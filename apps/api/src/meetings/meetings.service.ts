@@ -541,6 +541,26 @@ export class MeetingsService {
     return updated;
   }
 
+  async lockAttendance(id: string, actorUserId: string) {
+    const meeting = await this.prisma.meeting.findUnique({ where: { id } });
+    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+    if (meeting.attendanceLocked) throw new BadRequestException('La asistencia ya está cerrada');
+    const updated = await this.prisma.meeting.update({
+      where: { id },
+      data: { attendanceLocked: true, attendanceLockedAt: new Date() },
+      include: { club: true },
+    });
+    await this.audit.log({
+      meetingId: id,
+      actorUserId,
+      action: 'meeting.attendance.locked',
+      entityType: 'Meeting',
+      entityId: id,
+    });
+    await this.realtime.broadcastSnapshot(id);
+    return updated;
+  }
+
   async schedule(id: string, actorUserId: string) {
     const meeting = await this.prisma.meeting.findUnique({ where: { id } });
     if (!meeting) throw new NotFoundException('Reuni?n no encontrada');

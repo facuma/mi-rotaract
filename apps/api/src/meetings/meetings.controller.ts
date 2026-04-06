@@ -118,6 +118,13 @@ export class MeetingsController {
     return this.meetingsService.finish(id, user.id);
   }
 
+  @Post(':id/lock-attendance')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY, Role.RDR)
+  lockAttendance(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.meetingsService.lockAttendance(id, user.id);
+  }
+
   @Post(':id/schedule')
   @UseGuards(RolesGuard)
   @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)

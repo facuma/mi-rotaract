@@ -123,6 +123,8 @@ export default function AdminLivePage() {
                   currentSpeaker={snapshot.currentSpeaker}
                   nextSpeaker={snapshot.nextSpeaker}
                   clubsPresent={snapshot.quorum?.present ?? 0}
+                  clubAttendance={snapshot.clubAttendance}
+                  attendanceLocked={snapshot.attendanceLocked}
                 />
               </CardContent>
             </Card>

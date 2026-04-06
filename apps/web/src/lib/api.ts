@@ -97,6 +97,7 @@ export const meetingsApi = {
   pause: (id: string) => api<unknown>(`/meetings/${id}/pause`, { method: 'POST' }),
   resume: (id: string) => api<unknown>(`/meetings/${id}/resume`, { method: 'POST' }),
   finish: (id: string) => api<unknown>(`/meetings/${id}/finish`, { method: 'POST' }),
+  lockAttendance: (id: string) => api<unknown>(`/meetings/${id}/lock-attendance`, { method: 'POST' }),
   schedule: (id: string) => api<unknown>(`/meetings/${id}/schedule`, { method: 'POST' }),
   assignParticipants: (id: string, participants: { userId: string; canVote?: boolean }[]) =>
     api<unknown>(`/meetings/${id}/participants`, {

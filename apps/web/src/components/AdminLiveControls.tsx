@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { votingApi, timersApi, topicsApi, queueApi } from '@/lib/api';
+import { useCallback, useState } from 'react';
+import { votingApi, timersApi, topicsApi, queueApi, meetingsApi } from '@/lib/api';
+import { VoteReadyModal } from '@/components/meetings/VoteReadyModal';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -38,6 +39,8 @@ type AdminLiveControlsProps = {
   currentSpeaker?: Speaker | null;
   nextSpeaker?: Speaker | null;
   clubsPresent?: number;
+  clubAttendance?: { clubId: string; clubName: string; connected: boolean }[];
+  attendanceLocked?: boolean;
   onVoteOpened?: () => void;
   onVoteClosed?: () => void;
   onTopicChanged?: () => void;
@@ -61,6 +64,8 @@ export function AdminLiveControls({
   currentSpeaker,
   nextSpeaker,
   clubsPresent,
+  clubAttendance = [],
+  attendanceLocked = false,
   onVoteOpened,
   onVoteClosed,
   onTopicChanged,
@@ -71,9 +76,43 @@ export function AdminLiveControls({
   const [confirmCloseVote, setConfirmCloseVote] = useState(false);
   const [votingMethod, setVotingMethod] = useState('PUBLIC');
   const [requiredMajority, setRequiredMajority] = useState('SIMPLE');
+  const [showVoteReadyModal, setShowVoteReadyModal] = useState(false);
+  const [pendingVoteTopicId, setPendingVoteTopicId] = useState<string | null>(null);
+  const [lockingAttendance, setLockingAttendance] = useState(false);
   const [timerDuration, setTimerDuration] = useState('300');
   const [startingTimer, setStartingTimer] = useState(false);
   const [stoppingTimer, setStoppingTimer] = useState(false);
+
+  async function handleLockAttendance() {
+    setLockingAttendance(true);
+    try {
+      await meetingsApi.lockAttendance(meetingId);
+      toast.success('Asistencia cerrada.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setLockingAttendance(false);
+    }
+  }
+
+  function handleOpenVoteClick(topicId: string) {
+    const disconnected = clubAttendance.filter((c) => !c.connected);
+    if (disconnected.length > 0 && clubAttendance.length > 0) {
+      setPendingVoteTopicId(topicId);
+      setShowVoteReadyModal(true);
+    } else {
+      openVote(topicId);
+    }
+  }
+
+  const handleAllPresent = useCallback(() => {
+    if (pendingVoteTopicId) {
+      setShowVoteReadyModal(false);
+      openVote(pendingVoteTopicId);
+      setPendingVoteTopicId(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingVoteTopicId]);
 
   async function openVote(topicId: string) {
     try {
@@ -81,6 +120,8 @@ export function AdminLiveControls({
         votingMethod: votingMethod as 'PUBLIC' | 'SECRET',
         requiredMajority: requiredMajority as string,
       });
+      setShowVoteReadyModal(false);
+      setPendingVoteTopicId(null);
       toast.success('Votación abierta.');
       onVoteOpened?.();
     } catch (e) {
@@ -160,6 +201,53 @@ export function AdminLiveControls({
 
   return (
     <div className={cn('space-y-5', className)}>
+      {/* Attendance section */}
+      {clubAttendance.length > 0 && (
+        <FormSection
+          title="Asistencia"
+          description={attendanceLocked ? 'Asistencia cerrada.' : 'Clubes conectados a la reunión.'}
+        >
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm tabular-nums">
+                {clubAttendance.filter((c) => c.connected).length} de {clubAttendance.length} conectados
+              </span>
+              {attendanceLocked ? (
+                <Badge variant="secondary" className="text-xs">Cerrada</Badge>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={lockingAttendance}
+                  onClick={handleLockAttendance}
+                >
+                  {lockingAttendance ? 'Cerrando...' : 'Cerrar asistencia'}
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {clubAttendance.map((c) => (
+                <span
+                  key={c.clubId}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]',
+                    c.connected
+                      ? 'border border-success/30 bg-success/10 text-success'
+                      : 'border border-border bg-muted/30 text-muted-foreground',
+                  )}
+                >
+                  <span className={cn(
+                    'size-1.5 rounded-full',
+                    c.connected ? 'bg-success animate-pulse' : 'bg-muted-foreground/50',
+                  )} />
+                  {c.clubName}
+                </span>
+              ))}
+            </div>
+          </div>
+        </FormSection>
+      )}
+
       {/* Topic section */}
       <FormSection title="Tema actual" description="Seleccioná el tema en discusión.">
         <Select
@@ -263,7 +351,7 @@ export function AdminLiveControls({
               </p>
             )}
             <Button
-              onClick={() => openVote(currentTopic.id)}
+              onClick={() => handleOpenVoteClick(currentTopic.id)}
             >
               Abrir votación: {currentTopic.title}
             </Button>
@@ -349,6 +437,20 @@ export function AdminLiveControls({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Vote ready modal */}
+      <VoteReadyModal
+        open={showVoteReadyModal}
+        onOpenChange={setShowVoteReadyModal}
+        clubAttendance={clubAttendance}
+        topicTitle={currentTopic?.title ?? ''}
+        onContinue={() => {
+          if (pendingVoteTopicId) {
+            openVote(pendingVoteTopicId);
+          }
+        }}
+        onAllPresent={handleAllPresent}
+      />
     </div>
   );
 }

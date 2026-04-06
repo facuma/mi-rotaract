@@ -182,9 +182,16 @@ export default function ProjectorPage() {
       {snapshot && clubs.length > 0 && !hasActiveVote && !hasVoteResult && (
         <footer className="border-t border-border px-6 py-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs uppercase tracking-widest text-muted-foreground">
-              Clubes presentes
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs uppercase tracking-widest text-muted-foreground">
+                {snapshot.attendanceLocked ? 'Asistencia cerrada' : 'Clubes presentes'}
+              </span>
+              {snapshot.attendanceLocked && (
+                <span className="inline-flex items-center rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  {connectedClubs.length} papeletas
+                </span>
+              )}
+            </div>
             <span className="text-sm font-semibold tabular-nums">
               {connectedClubs.length} conectados / {clubs.length} registrados
             </span>

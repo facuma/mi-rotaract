@@ -290,6 +290,8 @@ model Meeting {
   quorumRequired     Int?
   quorumMet          Boolean       @default(false)
   isInformationalOnly Boolean      @default(false)
+  attendanceLocked   Boolean       @default(false)
+  attendanceLockedAt DateTime?
   currentTopicId     String?
   createdById        String
   clubId             String

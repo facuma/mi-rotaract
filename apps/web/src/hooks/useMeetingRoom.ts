@@ -12,6 +12,7 @@ export type MeetingSnapshot = {
   meetingType?: string;
   isDistrictMeeting?: boolean;
   isInformationalOnly?: boolean;
+  attendanceLocked?: boolean;
   currentTopicId: string | null;
   currentTopic: { id: string; title: string; type: string } | null;
   topics: { id: string; title: string; order: number; type: string; status: string }[];
@@ -44,7 +45,7 @@ export type MeetingSnapshot = {
 export type VoteResult = { voteSessionId: string; yes: number; no: number; abstain: number; total: number; approved?: boolean | null; isTied?: boolean; requiredMajority?: string };
 
 function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
-  const meeting = data.meeting as { id?: string; status?: string; type?: string; isDistrictMeeting?: boolean; isInformationalOnly?: boolean } | undefined;
+  const meeting = data.meeting as { id?: string; status?: string; type?: string; isDistrictMeeting?: boolean; isInformationalOnly?: boolean; attendanceLocked?: boolean } | undefined;
   const activeVote = data.activeVote as { voteSessionId?: string; topicId?: string; topicTitle?: string; votingMethod?: string; requiredMajority?: string } | undefined;
   const quorum = data.quorum as MeetingSnapshot['quorum'] ?? null;
   const timers = (data.timers as Array<{ id: string; type: string; plannedDurationSec: number; elapsedSec?: number }>) ?? [];
@@ -55,6 +56,7 @@ function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
     meetingType: meeting?.type,
     isDistrictMeeting: meeting?.isDistrictMeeting,
     isInformationalOnly: meeting?.isInformationalOnly,
+    attendanceLocked: meeting?.attendanceLocked,
     currentTopicId: (data.currentTopic as { id?: string })?.id ?? null,
     currentTopic: data.currentTopic as MeetingSnapshot['currentTopic'],
     topics: (data.topics as MeetingSnapshot['topics']) ?? [],

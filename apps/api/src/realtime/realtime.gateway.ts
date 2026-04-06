@@ -372,6 +372,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         currentTopicId: meeting.currentTopicId,
         currentSpeakerId: meeting.currentSpeakerId,
         nextSpeakerId: meeting.nextSpeakerId,
+        attendanceLocked: meeting.attendanceLocked,
         startedAt: meeting.startedAt?.toISOString() ?? null,
         scheduledAt: meeting.scheduledAt?.toISOString() ?? null,
         endedAt: meeting.endedAt?.toISOString() ?? null,
