@@ -1,4 +1,23 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: mi-rotaract-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rotaract
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: mi_rotaract
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rotaract -d mi_rotaract"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   api:
     build:
       context: .
@@ -10,6 +29,9 @@ services:
       - "8091:8091"
     volumes:
       - uploads:/app/apps/api/uploads
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8091/health"]
       interval: 30s
@@ -18,4 +40,5 @@ services:
       start_period: 40s
 
 volumes:
+  pgdata:
   uploads:
