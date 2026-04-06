@@ -8,9 +8,11 @@ import { VoteResultSummary } from '@/components/VoteResultSummary';
 import { CurrentTopicCard } from '@/components/CurrentTopicCard';
 import { SpeakingQueueList } from '@/components/SpeakingQueueList';
 import { RequestToSpeakButton } from '@/components/RequestToSpeakButton';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { cn } from '@/lib/utils';
 
 export default function ParticipantLivePage() {
   const params = useParams();
@@ -18,58 +20,88 @@ export default function ParticipantLivePage() {
   const { snapshot, voteResult, connected, joinError } = useMeetingRoom(meetingId);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={`/meetings/${meetingId}`}>← Volver</Link>
-        </Button>
-        <Badge variant={connected ? 'default' : 'secondary'}>
-          {connected ? 'Conectado' : 'Desconectado'}
-        </Badge>
+    <div className="mx-auto max-w-2xl space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={`/meetings/${meetingId}`}>← Volver</Link>
+          </Button>
+          <h1 className="text-lg font-semibold">Sala en vivo</h1>
+          {snapshot && <StatusBadge status={snapshot.status} />}
+        </div>
+        <div className="flex items-center gap-2">
+          <div
+            className={cn(
+              'size-2 rounded-full',
+              connected ? 'bg-success animate-pulse' : 'bg-destructive',
+            )}
+          />
+          <span className="text-xs text-muted-foreground">
+            {connected ? 'Conectado' : 'Desconectado'}
+          </span>
+        </div>
       </div>
+
       {joinError && (
-        <p className="text-sm text-destructive font-medium">{joinError}</p>
+        <Card className="border-destructive">
+          <CardContent className="p-4">
+            <p className="text-sm text-destructive font-medium">{joinError}</p>
+          </CardContent>
+        </Card>
       )}
-      <Card>
-        <CardHeader>
-          <CardTitle>Sala en vivo</CardTitle>
-          <CardDescription>Seguí el desarrollo de la reunión en tiempo real.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!snapshot && !joinError && (
-            <p className="text-sm text-muted-foreground">Cargando...</p>
+
+      {/* Loading skeleton */}
+      {!snapshot && !joinError && (
+        <div className="space-y-4">
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-14 w-full rounded-xl" />
+          <Skeleton className="h-48 w-full rounded-xl" />
+        </div>
+      )}
+
+      {snapshot && (
+        <>
+          {/* Current topic */}
+          <CurrentTopicCard
+            topic={snapshot.currentTopic ?? { title: '—' }}
+            timer={snapshot.activeTimer ?? null}
+            topics={snapshot.topics}
+            currentTopicId={snapshot.currentTopicId}
+          />
+
+          {/* Active vote */}
+          {snapshot.activeVoteSession && (
+            <VoteActionPanel
+              meetingId={meetingId}
+              voteSessionId={snapshot.activeVoteSession.id}
+              topicTitle={snapshot.activeVoteSession.topicTitle}
+            />
           )}
-          {snapshot && (
-            <>
-              <CurrentTopicCard
-                topic={snapshot.currentTopic ?? { title: '—' }}
-                timer={snapshot.activeTimer ?? null}
-              />
-              {(snapshot.status === 'LIVE' || snapshot.status === 'PAUSED') && (
-                <RequestToSpeakButton meetingId={meetingId} />
-              )}
-              <SpeakingQueueList
-                items={snapshot.speakingQueue ?? []}
-              />
-              {snapshot.activeVoteSession && (
-                <VoteActionPanel
-                  meetingId={meetingId}
-                  voteSessionId={snapshot.activeVoteSession.id}
-                  topicTitle={snapshot.activeVoteSession.topicTitle}
-                />
-              )}
-              {voteResult && !snapshot.activeVoteSession && (
-                <VoteResultSummary
-                  yes={voteResult.yes}
-                  no={voteResult.no}
-                  abstain={voteResult.abstain}
-                  total={voteResult.total}
-                />
-              )}
-            </>
+
+          {/* Request to speak */}
+          {(snapshot.status === 'LIVE' || snapshot.status === 'PAUSED') && (
+            <RequestToSpeakButton meetingId={meetingId} />
           )}
-        </CardContent>
-      </Card>
+
+          {/* Speaking queue */}
+          <SpeakingQueueList
+            items={snapshot.speakingQueue ?? []}
+            currentSpeaker={snapshot.currentSpeaker}
+            nextSpeaker={snapshot.nextSpeaker}
+          />
+
+          {/* Vote results */}
+          {voteResult && !snapshot.activeVoteSession && (
+            <VoteResultSummary
+              yes={voteResult.yes}
+              no={voteResult.no}
+              abstain={voteResult.abstain}
+              total={voteResult.total}
+            />
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -1,10 +1,12 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { clubsApi, eventsApi, meetingsApi, talentPublicApi, type Event, type EventsListParams } from '@/lib/api';
+import { clubsApi, eventsApi, meetingsApi, topicsApi, talentPublicApi, type Event, type EventsListParams } from '@/lib/api';
 
 export const queryKeys = {
   meetings: ['meetings'] as const,
+  meetingDetail: (id: string) => ['meetings', id] as const,
+  meetingTopics: (id: string) => ['meetings', id, 'topics'] as const,
   eventsUpcoming: (limit: number) => ['events', 'upcoming', limit] as const,
   eventsList: (params: EventsListParams) => ['events', 'list', params] as const,
   clubsList: (includeInactive = false) => ['clubs', includeInactive] as const,
@@ -15,6 +17,22 @@ export function useMeetingsQuery() {
   return useQuery({
     queryKey: queryKeys.meetings,
     queryFn: () => meetingsApi.list(),
+  });
+}
+
+export function useMeetingDetailQuery(id: string) {
+  return useQuery({
+    queryKey: queryKeys.meetingDetail(id),
+    queryFn: () => meetingsApi.get(id),
+    enabled: !!id,
+  });
+}
+
+export function useMeetingTopicsQuery(id: string) {
+  return useQuery({
+    queryKey: queryKeys.meetingTopics(id),
+    queryFn: () => topicsApi.list(id),
+    enabled: !!id,
   });
 }
 

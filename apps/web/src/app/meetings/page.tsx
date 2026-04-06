@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMeetingsQuery } from '@/lib/queries';
 import { MeetingsTable } from '@/components/MeetingsTable';
+import { MeetingCard } from '@/components/meetings/MeetingCard';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,19 +23,18 @@ export default function MyMeetingsPage() {
   const { data, isLoading, error } = useMeetingsQuery();
   const meetings = (data ?? []) as Meeting[];
 
+  const liveMeeting = meetings.find((m) => m.status === 'LIVE' || m.status === 'PAUSED');
+  const nextMeeting = !liveMeeting
+    ? meetings.find((m) => m.status === 'SCHEDULED')
+    : null;
+  const heroMeeting = liveMeeting ?? nextMeeting;
+
   if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
-        <Card className="shadow-sm">
-          <CardContent className="p-6">
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
@@ -61,6 +61,20 @@ export default function MyMeetingsPage() {
             : undefined
         }
       />
+
+      {/* Live/upcoming hero */}
+      {heroMeeting && (
+        <MeetingCard
+          meeting={heroMeeting}
+          href={
+            heroMeeting.status === 'LIVE' || heroMeeting.status === 'PAUSED'
+              ? `/meetings/${heroMeeting.id}/live`
+              : `/meetings/${heroMeeting.id}`
+          }
+          variant="hero"
+        />
+      )}
+
       <Card className="shadow-sm">
         <CardContent className="p-0">
           {meetings.length === 0 ? (

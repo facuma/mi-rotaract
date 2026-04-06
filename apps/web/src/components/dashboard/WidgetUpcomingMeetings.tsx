@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { MEETING_STATUS_LABELS } from '@/lib/meeting-constants';
 
 type Item = {
   id: string;
@@ -15,12 +16,6 @@ type Props = {
   items: Item[];
   emptyMessage: string;
   emptyActionHref?: string;
-};
-
-const statusLabel: Record<string, string> = {
-  SCHEDULED: 'Programada',
-  LIVE: 'En vivo',
-  DRAFT: 'Borrador',
 };
 
 function formatDate(iso: string) {
@@ -79,7 +74,7 @@ export function WidgetUpcomingMeetings({ items, emptyMessage, emptyActionHref = 
               </Button>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>{formatDate(m.scheduledAt)}</span>
-                <span>{statusLabel[m.status] ?? m.status}</span>
+                <span>{MEETING_STATUS_LABELS[m.status] ?? m.status}</span>
               </div>
             </li>
           ))}

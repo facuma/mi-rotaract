@@ -1,17 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { meetingsApi, topicsApi } from '@/lib/api';
-import { MeetingHeader } from '@/components/MeetingHeader';
+import { useQueryClient } from '@tanstack/react-query';
+import { meetingsApi } from '@/lib/api';
+import { queryKeys, useMeetingDetailQuery, useMeetingTopicsQuery } from '@/lib/queries';
+import { MEETING_STATUS_LABELS } from '@/lib/meeting-constants';
+import { MeetingStatusStepper } from '@/components/meetings/MeetingStatusStepper';
+import { TopicCreateDialog } from '@/components/meetings/TopicCreateDialog';
+import { TopicListSortable } from '@/components/TopicListSortable';
 import { AttachmentsCard } from '@/components/attachments/AttachmentsCard';
 import { ATTACHMENT_CONFIG } from '@/lib/attachment-config';
-import { TopicListSortable } from '@/components/TopicListSortable';
 import { BulkImportModal } from '@/components/bulk-import';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { EntityHero } from '@/components/ui/entity-hero';
+import { StatStrip } from '@/components/ui/stat-strip';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Card,
   CardContent,
@@ -20,13 +27,14 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 type Meeting = {
   id: string;
@@ -52,66 +60,72 @@ type Topic = {
 export default function MeetingDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  const [meeting, setMeeting] = useState<Meeting | null>(null);
-  const [topics, setTopics] = useState<Topic[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
+  const { data: meetingData, isLoading: meetingLoading, error: meetingError } = useMeetingDetailQuery(id);
+  const { data: topicsData } = useMeetingTopicsQuery(id);
+  const meeting = meetingData as Meeting | undefined;
+  const [topics, setTopics] = useState<Topic[] | null>(null);
   const [actioning, setActioning] = useState(false);
-  const [newTopicTitle, setNewTopicTitle] = useState('');
-  const [newTopicType, setNewTopicType] = useState('DISCUSSION');
+  const [confirmFinish, setConfirmFinish] = useState(false);
   const [bulkParticipantsOpen, setBulkParticipantsOpen] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (!id) return;
-    Promise.all([meetingsApi.get(id), topicsApi.list(id)])
-      .then(([m, t]) => {
-        setMeeting(m as Meeting);
-        setTopics(t as Topic[]);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [id]);
+  // Use React Query topics as initial, allow local mutations
+  const displayTopics = topics ?? (topicsData as Topic[] | undefined) ?? [];
+
+  function handleTopicsChange(newTopics: Topic[]) {
+    setTopics(newTopics);
+  }
 
   async function refreshMeeting() {
-    if (!id) return;
-    const m = await meetingsApi.get(id);
-    setMeeting(m as Meeting);
+    queryClient.invalidateQueries({ queryKey: queryKeys.meetingDetail(id) });
   }
 
   async function doAction(fn: () => Promise<unknown>) {
     setError('');
     setActioning(true);
     try {
-      const updated = await fn();
-      setMeeting(updated as Meeting);
+      await fn();
+      refreshMeeting();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
+      toast.error(err instanceof Error ? err.message : 'Error');
     } finally {
       setActioning(false);
     }
   }
 
-  if (loading) {
+  async function handleFinish() {
+    setActioning(true);
+    try {
+      await meetingsApi.finish(id);
+      setConfirmFinish(false);
+      refreshMeeting();
+      toast.success('Reunión finalizada.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setActioning(false);
+    }
+  }
+
+  if (meetingLoading) {
     return (
       <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-7 w-2/3" />
-            <Skeleton className="h-4 w-1/2" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-10 w-full" />
-          </CardContent>
-        </Card>
+        <Skeleton className="h-28 w-full rounded-xl" />
+        <Skeleton className="h-12 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
 
-  if (error && !meeting) {
+  if (meetingError && !meeting) {
     return (
       <Card className="border-destructive">
         <CardContent className="pt-6">
-          <p className="text-sm text-destructive font-medium">{error}</p>
+          <p className="text-sm text-destructive font-medium">
+            {meetingError instanceof Error ? meetingError.message : 'Error al cargar reunión.'}
+          </p>
         </CardContent>
       </Card>
     );
@@ -119,156 +133,149 @@ export default function MeetingDetailPage() {
 
   if (!meeting) return null;
 
+  const totalDurationMin = displayTopics.reduce((acc, t) => acc + (t.estimatedDurationSec ?? 0), 0) / 60;
+
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <MeetingHeader
-            title={meeting.title}
-            status={meeting.status}
-            scheduledAt={meeting.scheduledAt}
-            club={meeting.club}
-            actions={
-              <div className="flex flex-wrap gap-2">
-                {meeting.status === 'DRAFT' && (
-                  <Button
-                    disabled={actioning}
-                    onClick={() => doAction(() => meetingsApi.schedule(id))}
-                  >
-                    Programar reunión
-                  </Button>
-                )}
-                {(meeting.status === 'DRAFT' || meeting.status === 'SCHEDULED') && (
-                  <Button
-                    disabled={actioning}
-                    onClick={() => doAction(() => meetingsApi.start(id))}
-                  >
-                    Iniciar reunión
-                  </Button>
-                )}
-                {meeting.status === 'LIVE' && (
-                  <Button
-                    variant="secondary"
-                    disabled={actioning}
-                    onClick={() => doAction(() => meetingsApi.pause(id))}
-                  >
-                    Pausar
-                  </Button>
-                )}
-                {meeting.status === 'PAUSED' && (
-                  <Button
-                    disabled={actioning}
-                    onClick={() => doAction(() => meetingsApi.resume(id))}
-                  >
-                    Reanudar
-                  </Button>
-                )}
-                {(meeting.status === 'LIVE' || meeting.status === 'PAUSED') && (
-                  <Button
-                    variant="destructive"
-                    size="lg"
-                    disabled={actioning}
-                    onClick={() => {
-                      if (window.confirm('¿Finalizar la reunión? Esta acción no se puede deshacer.')) {
-                        doAction(() => meetingsApi.finish(id));
-                      }
-                    }}
-                  >
-                    Finalizar reunión
-                  </Button>
-                )}
-                {(meeting.status === 'LIVE' || meeting.status === 'PAUSED') && (
-                  <Button asChild>
-                    <Link href={`/admin/meetings/${id}/live`}>Ir a sala en vivo</Link>
-                  </Button>
-                )}
-              </div>
-            }
-          />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {error && (
+      {/* Hero */}
+      <EntityHero
+        title={meeting.title}
+        subtitle={[
+          meeting.club?.name,
+          meeting.scheduledAt
+            ? `Programada: ${new Date(meeting.scheduledAt).toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })}`
+            : null,
+        ].filter(Boolean).join(' · ')}
+        badges={<StatusBadge status={meeting.status} />}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {meeting.status === 'DRAFT' && (
+              <Button
+                disabled={actioning}
+                onClick={() => doAction(() => meetingsApi.schedule(id))}
+              >
+                Programar
+              </Button>
+            )}
+            {(meeting.status === 'DRAFT' || meeting.status === 'SCHEDULED') && (
+              <Button
+                disabled={actioning}
+                onClick={() => doAction(() => meetingsApi.start(id))}
+              >
+                Iniciar reunión
+              </Button>
+            )}
+            {meeting.status === 'LIVE' && (
+              <Button
+                variant="secondary"
+                disabled={actioning}
+                onClick={() => doAction(() => meetingsApi.pause(id))}
+              >
+                Pausar
+              </Button>
+            )}
+            {meeting.status === 'PAUSED' && (
+              <Button
+                disabled={actioning}
+                onClick={() => doAction(() => meetingsApi.resume(id))}
+              >
+                Reanudar
+              </Button>
+            )}
+            {(meeting.status === 'LIVE' || meeting.status === 'PAUSED') && (
+              <>
+                <Button
+                  variant="destructive"
+                  disabled={actioning}
+                  onClick={() => setConfirmFinish(true)}
+                >
+                  Finalizar
+                </Button>
+                <Button asChild>
+                  <Link href={`/admin/meetings/${id}/live`}>Ir a sala en vivo</Link>
+                </Button>
+              </>
+            )}
+          </div>
+        }
+      />
+
+      {/* Status stepper */}
+      <MeetingStatusStepper currentStatus={meeting.status} />
+
+      {/* Stats */}
+      <StatStrip
+        items={[
+          { label: 'Temas', value: displayTopics.length },
+          { label: 'Participantes', value: meeting.participants?.length ?? 0 },
+          { label: 'Duración est.', value: totalDurationMin > 0 ? `${Math.round(totalDurationMin)} min` : '—' },
+          { label: 'Estado', value: MEETING_STATUS_LABELS[meeting.status] ?? meeting.status },
+        ]}
+      />
+
+      {error && (
+        <Card className="border-destructive">
+          <CardContent className="p-4">
             <p className="text-sm text-destructive font-medium">{error}</p>
-          )}
-          {meeting.description && (
-            <p className="text-sm text-muted-foreground">{meeting.description}</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Temas de agenda</CardTitle>
-          <CardDescription>Ordená los temas y marcá el actual.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <TopicListSortable
-            meetingId={id}
-            topics={topics}
-            currentTopicId={meeting.currentTopicId}
-            canEdit
-            onTopicsChange={setTopics}
-            onCurrentTopicChange={refreshMeeting}
-          />
-          <form
-            className="flex flex-wrap items-end gap-2"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!newTopicTitle.trim()) return;
-              setError('');
-              try {
-                const t = (await topicsApi.create(id, {
-                  title: newTopicTitle.trim(),
-                  type: newTopicType,
-                })) as Topic;
-                setTopics((prev) => [...prev, t].sort((a, b) => a.order - b.order));
-                setNewTopicTitle('');
-              } catch (err) {
-                setError(err instanceof Error ? err.message : 'Error');
-              }
-            }}
-          >
-            <Input
-              value={newTopicTitle}
-              onChange={(e) => setNewTopicTitle(e.target.value)}
-              placeholder="Título del tema"
-              className="min-w-[200px]"
-            />
-            <Select value={newTopicType} onValueChange={setNewTopicType}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="DISCUSSION">Discusión</SelectItem>
-                <SelectItem value="VOTING">Votación</SelectItem>
-                <SelectItem value="INFORMATIVE">Informativo</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button type="submit">Agregar tema</Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {meeting.status === 'DRAFT' && (
-        <AttachmentsCard
-          fetchKey={id}
-          title="Actas / Documentos"
-          list={() => meetingsApi.listAttachments(id)}
-          upload={(file) => meetingsApi.uploadAttachment(id, file)}
-          deleteAttachment={(attachmentId) =>
-            meetingsApi.deleteAttachment(id, attachmentId)
-          }
-          maxFiles={ATTACHMENT_CONFIG.meeting.maxFiles}
-          maxSizeBytes={ATTACHMENT_CONFIG.meeting.maxSizeMB * 1024 * 1024}
-          accept={ATTACHMENT_CONFIG.meeting.accept}
-        />
+          </CardContent>
+        </Card>
       )}
 
+      {meeting.description && (
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">{meeting.description}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Topics */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Temas de agenda</CardTitle>
+            <CardDescription>Ordená los temas y marcá el actual.</CardDescription>
+          </div>
+          <TopicCreateDialog
+            meetingId={id}
+            onCreated={(t) => handleTopicsChange([...displayTopics, t].sort((a, b) => a.order - b.order))}
+          />
+        </CardHeader>
+        <CardContent>
+          <TopicListSortable
+            meetingId={id}
+            topics={displayTopics}
+            currentTopicId={meeting.currentTopicId}
+            canEdit
+            onTopicsChange={handleTopicsChange}
+            onCurrentTopicChange={refreshMeeting}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Attachments */}
+      <AttachmentsCard
+        fetchKey={id}
+        title="Actas / Documentos"
+        list={() => meetingsApi.listAttachments(id)}
+        upload={(file) => meetingsApi.uploadAttachment(id, file)}
+        deleteAttachment={(attachmentId) => meetingsApi.deleteAttachment(id, attachmentId)}
+        maxFiles={ATTACHMENT_CONFIG.meeting.maxFiles}
+        maxSizeBytes={ATTACHMENT_CONFIG.meeting.maxSizeMB * 1024 * 1024}
+        accept={ATTACHMENT_CONFIG.meeting.accept}
+        disabled={meeting.status !== 'DRAFT'}
+      />
+
+      {/* Participants */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
             <CardTitle>Participantes</CardTitle>
-            <CardDescription>Asignados a esta reunión.</CardDescription>
+            <CardDescription>
+              {meeting.participants?.length
+                ? `${meeting.participants.length} asignado${meeting.participants.length === 1 ? '' : 's'}`
+                : 'Sin participantes asignados.'}
+            </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={() => setBulkParticipantsOpen(true)}>
             Importar CSV
@@ -276,18 +283,24 @@ export default function MeetingDetailPage() {
         </CardHeader>
         <CardContent>
           {meeting.participants?.length ? (
-            <ul className="space-y-1 text-sm">
+            <ul className="space-y-2">
               {meeting.participants.map((p) => (
-                <li key={p.userId} className="flex items-center gap-2">
-                  {p.user?.fullName ?? p.userId}
+                <li
+                  key={p.userId}
+                  className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm"
+                >
+                  <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                    {(p.user?.fullName ?? '?').charAt(0).toUpperCase()}
+                  </span>
+                  <span className="flex-1 font-medium">{p.user?.fullName ?? p.userId}</span>
                   {p.canVote && (
-                    <Badge variant="outline" className="text-xs">vota</Badge>
+                    <Badge variant="outline" className="text-xs">Vota</Badge>
                   )}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">Sin participantes asignados.</p>
+            <p className="text-sm text-muted-foreground">Importá participantes desde un archivo CSV.</p>
           )}
 
           <BulkImportModal
@@ -301,6 +314,26 @@ export default function MeetingDetailPage() {
           />
         </CardContent>
       </Card>
+
+      {/* Confirm finish dialog */}
+      <Dialog open={confirmFinish} onOpenChange={setConfirmFinish}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Finalizar reunión</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que querés finalizar la reunión? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmFinish(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" disabled={actioning} onClick={handleFinish}>
+              {actioning ? 'Finalizando...' : 'Finalizar reunión'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

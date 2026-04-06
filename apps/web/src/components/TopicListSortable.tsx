@@ -6,6 +6,7 @@ import { topicsApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { TOPIC_TYPE_LABELS } from '@/lib/meeting-constants';
 
 type Topic = {
   id: string;
@@ -15,12 +16,6 @@ type Topic = {
   type: string;
   estimatedDurationSec?: number | null;
   status: string;
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  DISCUSSION: 'Discusión',
-  VOTING: 'Votación',
-  INFORMATIVE: 'Informativo',
 };
 
 export function TopicListSortable({
@@ -96,7 +91,7 @@ export function TopicListSortable({
           >
             <span className="flex flex-wrap items-center gap-2">
               <strong className="font-medium">{t.title}</strong>
-              <Badge variant="secondary">{TYPE_LABELS[t.type] ?? t.type}</Badge>
+              <Badge variant="secondary">{TOPIC_TYPE_LABELS[t.type] ?? t.type}</Badge>
               {t.estimatedDurationSec != null && (
                 <span className="text-muted-foreground">({t.estimatedDurationSec}s)</span>
               )}
