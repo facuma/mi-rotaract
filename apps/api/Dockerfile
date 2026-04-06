@@ -90,4 +90,4 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=40s \
 
 USER nestjs
 
-CMD ["node", "apps/api/dist/main.js"]
+CMD ["node", "apps/api/dist/src/main.js"]
