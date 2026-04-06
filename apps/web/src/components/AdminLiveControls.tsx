@@ -37,6 +37,7 @@ type AdminLiveControlsProps = {
   currentTopic: Topic | null;
   currentSpeaker?: Speaker | null;
   nextSpeaker?: Speaker | null;
+  clubsPresent?: number;
   onVoteOpened?: () => void;
   onVoteClosed?: () => void;
   onTopicChanged?: () => void;
@@ -59,6 +60,7 @@ export function AdminLiveControls({
   currentTopic,
   currentSpeaker,
   nextSpeaker,
+  clubsPresent,
   onVoteOpened,
   onVoteClosed,
   onTopicChanged,
@@ -255,6 +257,11 @@ export function AdminLiveControls({
                 </SelectContent>
               </Select>
             </div>
+            {clubsPresent !== undefined && clubsPresent > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {clubsPresent} papeleta{clubsPresent === 1 ? '' : 's'} (clubes presentes)
+              </p>
+            )}
             <Button
               onClick={() => openVote(currentTopic.id)}
             >

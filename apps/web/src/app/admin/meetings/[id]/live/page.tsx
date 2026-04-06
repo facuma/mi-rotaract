@@ -122,6 +122,7 @@ export default function AdminLivePage() {
                   activeTimer={snapshot.activeTimer ?? null}
                   currentSpeaker={snapshot.currentSpeaker}
                   nextSpeaker={snapshot.nextSpeaker}
+                  clubsPresent={snapshot.quorum?.present ?? 0}
                 />
               </CardContent>
             </Card>

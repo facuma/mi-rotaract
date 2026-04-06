@@ -12,6 +12,7 @@ import { VoteChoice } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { VotingService } from '../voting/voting.service';
+import { QuorumService } from '../meetings/quorum.service';
 
 const MEETING_ROOM_PREFIX = 'meeting:';
 
@@ -29,13 +30,57 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   @WebSocketServer()
   server!: Server;
 
+  // In-memory tracking: meetingId -> Map<clubId, Set<socketId>>
+  private connectedClubs = new Map<string, Map<string, Set<string>>>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly audit: AuditService,
     @Inject(forwardRef(() => VotingService))
     private readonly votingService: VotingService,
+    @Inject(forwardRef(() => QuorumService))
+    private readonly quorumService: QuorumService,
   ) {}
+
+  /** Get count of clubs with at least 1 connected socket */
+  getConnectedClubCount(meetingId: string): number {
+    const clubs = this.connectedClubs.get(meetingId);
+    if (!clubs) return 0;
+    let count = 0;
+    for (const sockets of clubs.values()) {
+      if (sockets.size > 0) count++;
+    }
+    return count;
+  }
+
+  /** Get IDs of clubs currently connected */
+  getConnectedClubIds(meetingId: string): string[] {
+    const clubs = this.connectedClubs.get(meetingId);
+    if (!clubs) return [];
+    const ids: string[] = [];
+    for (const [clubId, sockets] of clubs.entries()) {
+      if (sockets.size > 0) ids.push(clubId);
+    }
+    return ids;
+  }
+
+  private trackClubConnect(meetingId: string, clubId: string, socketId: string) {
+    if (!this.connectedClubs.has(meetingId)) {
+      this.connectedClubs.set(meetingId, new Map());
+    }
+    const clubs = this.connectedClubs.get(meetingId)!;
+    if (!clubs.has(clubId)) clubs.set(clubId, new Set());
+    clubs.get(clubId)!.add(socketId);
+  }
+
+  private trackClubDisconnect(meetingId: string, socketId: string) {
+    const clubs = this.connectedClubs.get(meetingId);
+    if (!clubs) return;
+    for (const sockets of clubs.values()) {
+      sockets.delete(socketId);
+    }
+  }
 
   handleConnection() {}
 
@@ -43,6 +88,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const meetingIds = client.data?.meetingIds ?? [];
     const userId = client.data?.userId;
     for (const meetingId of meetingIds) {
+      this.trackClubDisconnect(meetingId, client.id);
       if (userId) {
         await this.markParticipantLeft(meetingId, userId);
       }
@@ -99,7 +145,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       where: { id: userId },
       select: { role: true },
     });
-    const isModerator = user?.role === 'SECRETARY' || user?.role === 'PRESIDENT';
+    const isModerator = user?.role === 'SECRETARY' || user?.role === 'PRESIDENT' || user?.role === 'RDR';
     if (!isParticipant && !isModerator) {
       return { event: 'error', data: { message: 'No tenés acceso a esta reunión' } };
     }
@@ -112,13 +158,41 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       where: { meetingId_userId: { meetingId, userId } },
     });
     if (participant) {
-      await this.prisma.meetingParticipant.update({
-        where: { id: participant.id },
-        data: {
-          attendanceStatus: 'JOINED',
-          ...(participant.joinedAt ? {} : { joinedAt: new Date() }),
-        },
-      });
+      // Resolve clubId if missing
+      let clubId = participant.clubId;
+      if (!clubId) {
+        const membership = await this.prisma.membership.findFirst({
+          where: { userId },
+          select: { clubId: true },
+        });
+        clubId = membership?.clubId ?? null;
+        if (clubId) {
+          await this.prisma.meetingParticipant.update({
+            where: { id: participant.id },
+            data: { clubId, attendanceStatus: 'JOINED', ...(participant.joinedAt ? {} : { joinedAt: new Date() }) },
+          });
+        } else {
+          await this.prisma.meetingParticipant.update({
+            where: { id: participant.id },
+            data: { attendanceStatus: 'JOINED', ...(participant.joinedAt ? {} : { joinedAt: new Date() }) },
+          });
+        }
+      } else {
+        await this.prisma.meetingParticipant.update({
+          where: { id: participant.id },
+          data: { attendanceStatus: 'JOINED', ...(participant.joinedAt ? {} : { joinedAt: new Date() }) },
+        });
+      }
+
+      // Track club connection and register attendance
+      if (clubId) {
+        this.trackClubConnect(meetingId, clubId, client.id);
+        try {
+          await this.quorumService.recordClubAttendance(meetingId, clubId, userId, participant.isDelegate);
+          await this.quorumService.recheckAndUpdateQuorum(meetingId);
+        } catch { /* non-blocking */ }
+      }
+
       await this.audit.log({
         meetingId,
         actorUserId: userId,
@@ -156,6 +230,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   async handleLeaveMeeting(client: SocketWithData, payload: { meetingId: string }) {
     const meetingId = payload.meetingId;
     if (meetingId) {
+      this.trackClubDisconnect(meetingId, client.id);
       const userId = client.data?.userId;
       if (userId) await this.markParticipantLeft(meetingId, userId);
       if (Array.isArray(client.data?.meetingIds)) {
@@ -283,11 +358,16 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         elapsedSec: elapsed,
       };
     });
+    const clubsPresent = this.getConnectedClubCount(meetingId);
+
     return {
       meeting: {
         id: meeting.id,
         title: meeting.title,
         status: meeting.status,
+        type: meeting.type,
+        isDistrictMeeting: meeting.isDistrictMeeting,
+        isInformationalOnly: meeting.isInformationalOnly,
         currentTopicId: meeting.currentTopicId,
         currentSpeakerId: meeting.currentSpeakerId,
         nextSpeakerId: meeting.nextSpeakerId,
@@ -295,6 +375,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         scheduledAt: meeting.scheduledAt?.toISOString() ?? null,
         endedAt: meeting.endedAt?.toISOString() ?? null,
       },
+      quorum: meeting.isDistrictMeeting ? {
+        required: meeting.quorumRequired ?? 0,
+        present: clubsPresent,
+        met: meeting.quorumMet,
+        isInformationalOnly: meeting.isInformationalOnly,
+      } : null,
       currentTopic: currentTopic
         ? {
             id: currentTopic.id,
@@ -322,6 +408,9 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
             topicId: openVoteSession.topicId,
             topicTitle: openVoteSession.topic.title,
             openedAt: openVoteSession.openedAt.toISOString(),
+            votingMethod: openVoteSession.votingMethod,
+            requiredMajority: openVoteSession.requiredMajority,
+            eligibleClubCount: openVoteSession.eligibleClubCount,
           }
         : null,
       ownVote,

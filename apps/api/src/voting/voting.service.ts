@@ -17,6 +17,7 @@ export type VoteResult = {
   no: number;
   abstain: number;
   total: number;
+  eligibleClubCount: number | null;
   approved: boolean | null;
   requiredMajority: MajorityType;
   isTied: boolean;
@@ -61,6 +62,11 @@ export class VotingService {
     });
     if (existing) throw new BadRequestException('Ya hay una votación abierta para este tema');
 
+    // Capture "papeletas": clubs currently connected at voting time
+    const connectedClubIds = meeting.isDistrictMeeting
+      ? this.realtime.getConnectedClubIds(meetingId)
+      : [];
+
     const session = await this.prisma.voteSession.create({
       data: {
         meetingId,
@@ -69,6 +75,8 @@ export class VotingService {
         votingMethod: options?.votingMethod ?? VotingMethod.PUBLIC,
         requiredMajority: options?.requiredMajority ?? MajorityType.SIMPLE,
         isElection: options?.isElection ?? false,
+        eligibleClubIds: connectedClubIds.length > 0 ? JSON.stringify(connectedClubIds) : null,
+        eligibleClubCount: connectedClubIds.length > 0 ? connectedClubIds.length : null,
       },
       include: { topic: true },
     });
@@ -176,6 +184,14 @@ export class VotingService {
 
       if (!clubId) {
         throw new ForbiddenException('No se puede votar sin club asociado en reunión distrital');
+      }
+
+      // Validate against eligible clubs ("papeletas") if recorded
+      if (session.eligibleClubIds) {
+        const eligible: string[] = JSON.parse(session.eligibleClubIds);
+        if (!eligible.includes(clubId)) {
+          throw new ForbiddenException('Tu club no estaba presente al momento de abrir la votación');
+        }
       }
 
       // Check if this club already voted (by another user)
@@ -325,21 +341,26 @@ export class VotingService {
     const votesForMajority = yes + no; // abstentions don't count for majority calc
     let approved: boolean | null = null;
 
+    // For ABSOLUTE/TWO_THIRDS/THREE_QUARTERS with eligible clubs, use eligibleClubCount
+    // as the denominator (= papeletas presentes), not just votes cast
+    const eligibleCount = session?.eligibleClubCount ?? votesForMajority;
+
     if (!isTied && votesForMajority > 0) {
       switch (majority) {
         case MajorityType.SIMPLE:
           approved = yes > no;
           break;
         case MajorityType.ABSOLUTE:
-          approved = yes > counts.total / 2;
+          // > 50% of present clubs (papeletas)
+          approved = yes > eligibleCount / 2;
           break;
         case MajorityType.TWO_THIRDS:
-          // Art. 65-66: >= 2/3 of votes
-          approved = yes >= (votesForMajority * 2) / 3;
+          // Art. 65-66: >= 2/3 of present clubs
+          approved = yes >= (eligibleCount * 2) / 3;
           break;
         case MajorityType.THREE_QUARTERS:
-          // Art. 35e: >= 3/4 for RDR removal
-          approved = yes >= (votesForMajority * 3) / 4;
+          // Art. 35e: >= 3/4 of present clubs
+          approved = yes >= (eligibleCount * 3) / 4;
           break;
       }
     }
@@ -350,6 +371,7 @@ export class VotingService {
       no,
       abstain: counts.abstain,
       total: counts.total,
+      eligibleClubCount: session?.eligibleClubCount ?? null,
       approved,
       requiredMajority: majority,
       isTied,

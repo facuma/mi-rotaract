@@ -348,6 +348,8 @@ model VoteSession {
   isElection          Boolean           @default(false)
   rdrTiebreakerUsed   Boolean           @default(false)
   rdrTiebreakerChoice VoteChoice?
+  eligibleClubIds     String?           @db.Text
+  eligibleClubCount   Int?
   openedAt            DateTime          @default(now())
   closedAt            DateTime?
   openedById          String?

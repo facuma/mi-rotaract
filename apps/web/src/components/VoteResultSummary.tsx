@@ -11,6 +11,7 @@ type VoteResultSummaryProps = {
   approved?: boolean | null;
   isTied?: boolean;
   requiredMajority?: string;
+  eligibleClubCount?: number | null;
   className?: string;
 };
 
@@ -22,6 +23,7 @@ export function VoteResultSummary({
   approved: approvedProp,
   isTied,
   requiredMajority,
+  eligibleClubCount,
   className,
 }: VoteResultSummaryProps) {
   const voted = yes + no + abstain;
@@ -104,7 +106,10 @@ export function VoteResultSummary({
 
       {/* Total */}
       <p className="text-xs text-muted-foreground text-center">
-        {voted} de {total} votaron ({total > 0 ? Math.round((voted / total) * 100) : 0}%)
+        {eligibleClubCount
+          ? `${voted} de ${eligibleClubCount} presentes votaron (${eligibleClubCount > 0 ? Math.round((voted / eligibleClubCount) * 100) : 0}%)`
+          : `${voted} de ${total} votaron (${total > 0 ? Math.round((voted / total) * 100) : 0}%)`
+        }
       </p>
     </div>
   );
