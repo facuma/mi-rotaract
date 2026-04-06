@@ -77,6 +77,9 @@ COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 COPY --from=build /app/apps/api/package.json ./apps/api/
 
+# Create uploads dir writable by nestjs user
+RUN mkdir -p /app/apps/api/uploads && chown nestjs:nestjs /app/apps/api/uploads
+
 ENV NODE_ENV=production
 ENV PORT=8091
 
