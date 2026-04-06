@@ -130,7 +130,7 @@ export class TalentService {
 
     const isOwnProfile = viewer.id === userId;
     const isDistrital =
-      viewer.role === Role.SECRETARY || viewer.role === Role.PRESIDENT;
+      viewer.role === Role.SECRETARY || viewer.role === Role.PRESIDENT || viewer.role === Role.RDR;
     const isCompany = viewer.role === Role.COMPANY;
 
     if (isOwnProfile) {

@@ -17,7 +17,7 @@ export class TimersController {
 
   @Post('topic/start')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   startTopic(
     @Param('meetingId') meetingId: string,
     @Body('topicId') topicId: string,
@@ -29,7 +29,7 @@ export class TimersController {
 
   @Post('stop')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   stop(
     @Param('meetingId') meetingId: string,
     @Body('timerId') timerId: string,

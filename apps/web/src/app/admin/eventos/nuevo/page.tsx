@@ -20,7 +20,7 @@ export default function AdminEventoNuevoPage() {
     clubsApi.list().then(setClubs).catch(() => setClubs([]));
   }, []);
 
-  const isPresident = user?.role === 'PRESIDENT';
+  const isPresident = user?.role === 'PRESIDENT' || user?.role === 'RDR';
 
   const handleSubmit = async (data: EventFormData) => {
     const payload = {

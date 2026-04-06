@@ -19,7 +19,7 @@ export default function InformeDetallePage() {
   const id = params.id as string;
   const [report, setReport] = useState<ClubReportDetail | null>(null);
   const [error, setError] = useState('');
-  const isPresident = user?.role === 'PRESIDENT';
+  const isPresident = user?.role === 'PRESIDENT' || user?.role === 'RDR';
 
   useEffect(() => {
     if (!id) return;

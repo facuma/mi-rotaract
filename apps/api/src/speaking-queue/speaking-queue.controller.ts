@@ -52,7 +52,7 @@ export class SpeakingQueueController {
 
   @Post('current-speaker')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   setCurrentSpeaker(
     @Param('meetingId') meetingId: string,
     @Body('userId') userId: string | null,
@@ -63,7 +63,7 @@ export class SpeakingQueueController {
 
   @Post('next-speaker')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   setNextSpeaker(
     @Param('meetingId') meetingId: string,
     @Body('userId') userId: string | null,

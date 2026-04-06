@@ -109,7 +109,7 @@ export default function OportunidadesPage() {
   const [bulkOpen, setBulkOpen] = useState(false);
 
   const canPublish =
-    user?.role === 'SECRETARY' || user?.role === 'PRESIDENT';
+    user?.role === 'SECRETARY' || user?.role === 'PRESIDENT' || user?.role === 'RDR';
 
   const fetchData = useCallback(async () => {
     setLoading(true);

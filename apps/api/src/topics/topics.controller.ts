@@ -40,7 +40,7 @@ export class TopicsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true }))
   create(
     @Param('meetingId') meetingId: string,
@@ -51,7 +51,7 @@ export class TopicsController {
 
   @Patch(':topicId')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true }))
   update(
     @Param('meetingId') meetingId: string,
@@ -63,7 +63,7 @@ export class TopicsController {
 
   @Delete(':topicId')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   remove(
     @Param('meetingId') meetingId: string,
     @Param('topicId') topicId: string,
@@ -73,7 +73,7 @@ export class TopicsController {
 
   @Post('reorder')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true }))
   reorder(
     @Param('meetingId') meetingId: string,
@@ -84,7 +84,7 @@ export class TopicsController {
 
   @Post('current')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   setCurrent(
     @Param('meetingId') meetingId: string,
     @Body('topicId') topicId: string | null,

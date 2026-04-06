@@ -24,7 +24,7 @@ export class PublishOpportunityGuard implements CanActivate {
       throw new ForbiddenException('No autenticado');
     }
 
-    if (user.role === Role.SECRETARY || user.role === Role.PRESIDENT) {
+    if (user.role === Role.SECRETARY || user.role === Role.PRESIDENT || user.role === Role.RDR) {
       return true;
     }
 

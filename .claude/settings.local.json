@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh mi-vps-facu:*)",
+      "Bash(npx vercel:*)",
+      "Bash(npx prisma:*)"
+    ]
+  }
+}

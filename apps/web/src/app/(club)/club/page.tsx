@@ -15,7 +15,7 @@ export default function ClubPage() {
   const { user } = useAuth();
   const [summary, setSummary] = useState<ClubSummary | null>(null);
   const [error, setError] = useState('');
-  const isPresident = user?.role === 'PRESIDENT';
+  const isPresident = user?.role === 'PRESIDENT' || user?.role === 'RDR';
 
   useEffect(() => {
     clubApi

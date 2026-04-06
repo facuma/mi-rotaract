@@ -422,7 +422,7 @@ export class AttachmentsService {
         select: { clubId: true },
       });
       if (!meeting) throw new ForbiddenException('Adjunto no encontrado');
-      if (role === Role.SECRETARY || role === Role.PRESIDENT) return;
+      if (role === Role.SECRETARY || role === Role.PRESIDENT || role === Role.RDR) return;
       await this.requireMembership(userId, meeting.clubId);
       return;
     }
@@ -536,7 +536,7 @@ export class AttachmentsService {
     if (context.role === Role.SECRETARY) return;
     if (event.organizerId === userId) return;
     if (event.clubId && context.clubId && event.clubId === context.clubId) return;
-    if (event.clubId && context.role === Role.PRESIDENT) {
+    if (event.clubId && context.role === Role.PRESIDENT || role === Role.RDR) {
       const presidentClubIds = await this.getPresidentClubIds(userId);
       if (presidentClubIds.includes(event.clubId)) return;
     }
@@ -583,7 +583,7 @@ export class AttachmentsService {
     if (!meeting) throw new ForbiddenException('Reunión no encontrada');
     if (context.role === Role.SECRETARY) return;
     if (context.clubId && meeting.clubId === context.clubId) return;
-    if (context.role === Role.PRESIDENT && context.actorUserId) {
+    if (context.role === Role.PRESIDENT || role === Role.RDR && context.actorUserId) {
       const presidentClubIds = await this.getPresidentClubIds(context.actorUserId);
       if (presidentClubIds.includes(meeting.clubId)) return;
     }

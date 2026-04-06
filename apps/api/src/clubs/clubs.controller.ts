@@ -55,14 +55,14 @@ export class ClubsController {
 
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.PARTICIPANT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR, Role.PARTICIPANT)
   findAll(@Query('includeInactive') includeInactive?: string) {
     return this.clubsService.findAll(includeInactive === 'true');
   }
 
   @Get(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.PARTICIPANT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR, Role.PARTICIPANT)
   findOne(@Param('id') id: string) {
     return this.clubsService.findOne(id);
   }

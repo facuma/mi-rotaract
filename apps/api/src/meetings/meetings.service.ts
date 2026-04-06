@@ -360,7 +360,7 @@ export class MeetingsService {
   }
 
   async findAll(userId: string, role: Role) {
-    if (role === Role.SECRETARY || role === Role.PRESIDENT) {
+    if (role === Role.SECRETARY || role === Role.PRESIDENT || role === Role.RDR) {
       return this.prisma.meeting.findMany({
         orderBy: [{ scheduledAt: 'desc' }, { createdAt: 'desc' }],
         include: { club: true },
@@ -382,7 +382,7 @@ export class MeetingsService {
       include: { club: true, participants: { include: { user: true } } },
     });
     if (!meeting) throw new NotFoundException('Reuni?n no encontrada');
-    if (role !== Role.SECRETARY && role !== Role.PRESIDENT) {
+    if (role !== Role.SECRETARY && role !== Role.PRESIDENT && role !== Role.RDR) {
       const isParticipant = meeting.participants.some((p) => p.userId === userId);
       if (!isParticipant && meeting.status !== MeetingStatus.DRAFT)
         throw new NotFoundException('No ten?s acceso a esta reuni?n');

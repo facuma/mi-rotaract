@@ -36,7 +36,7 @@ export default function AdminEventoEditarPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const isPresident = user?.role === 'PRESIDENT';
+  const isPresident = user?.role === 'PRESIDENT' || user?.role === 'RDR';
 
   const handleSubmit = async (data: EventFormData) => {
     const payload = {

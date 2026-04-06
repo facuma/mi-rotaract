@@ -17,7 +17,7 @@ export default function EventosPage() {
   const { user } = useAuth();
   const [filters, setFilters] = useState<EventFiltersState>({});
 
-  const canAdmin = user?.role === 'SECRETARY' || user?.role === 'PRESIDENT';
+  const canAdmin = user?.role === 'SECRETARY' || user?.role === 'PRESIDENT' || user?.role === 'RDR';
 
   const eventsParams = useMemo(
     () => ({

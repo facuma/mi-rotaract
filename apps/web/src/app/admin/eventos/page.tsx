@@ -46,7 +46,7 @@ export default function AdminEventosPage() {
 
   useEffect(() => {
     loadEvents();
-    if (user?.role === 'SECRETARY' || user?.role === 'PRESIDENT') {
+    if (user?.role === 'SECRETARY' || user?.role === 'PRESIDENT' || user?.role === 'RDR') {
       clubsApi.list().then(setClubs).catch(() => setClubs([]));
     }
   }, [user?.role]);

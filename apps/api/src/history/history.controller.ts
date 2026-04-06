@@ -33,7 +33,7 @@ export class HistoryController {
 
   @Get('meetings/:meetingId/votes')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   async getVoteSessions(
     @Param('meetingId') meetingId: string,
     @CurrentUser() user: CurrentUserPayload,
@@ -65,7 +65,7 @@ export class HistoryController {
 
   @Get('meetings/:meetingId/votes/export')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   async exportVotes(
     @Param('meetingId') meetingId: string,
     @Query('format') format: string | undefined,

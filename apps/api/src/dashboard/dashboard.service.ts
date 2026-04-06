@@ -25,7 +25,7 @@ export class DashboardService {
     if (role === Role.SECRETARY) {
       return this.getSecretaryDashboard(userId, widgets);
     }
-    if (role === Role.PRESIDENT) {
+    if (role === Role.PRESIDENT || role === Role.RDR) {
       return this.getPresidentDashboard(userId, widgets);
     }
     return this.getParticipantDashboard(userId, widgets);

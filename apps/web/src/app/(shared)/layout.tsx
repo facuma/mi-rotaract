@@ -19,7 +19,7 @@ export default function SharedLayout({ children }: { children: React.ReactNode }
   }
 
   const backHref =
-    user.role === 'SECRETARY' || user.role === 'PRESIDENT' ? '/admin/meetings' : '/meetings';
+    user.role === 'SECRETARY' || user.role === 'PRESIDENT' || user.role === 'RDR' ? '/admin/meetings' : '/meetings';
 
   return (
     <AppShell title="Historial" user={user} backHref={backHref} backLabel="Volver">

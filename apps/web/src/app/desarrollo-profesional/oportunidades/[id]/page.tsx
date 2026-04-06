@@ -49,7 +49,7 @@ export default function OportunidadDetallePage() {
   const [loading, setLoading] = useState(true);
 
   const canPublish =
-    user?.role === 'SECRETARY' || user?.role === 'PRESIDENT';
+    user?.role === 'SECRETARY' || user?.role === 'PRESIDENT' || user?.role === 'RDR';
 
   const fetchOpp = useCallback(() => {
     if (!id) return;

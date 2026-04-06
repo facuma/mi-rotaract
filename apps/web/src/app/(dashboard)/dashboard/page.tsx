@@ -10,6 +10,7 @@ import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 const ROLE_LABELS: Record<string, string> = {
   PARTICIPANT: 'participante',
   PRESIDENT: 'presidente',
+  RDR: 'representante distrital',
   SECRETARY: 'secretaría',
 };
 

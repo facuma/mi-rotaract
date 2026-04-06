@@ -20,7 +20,7 @@ import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user
 
 @Controller('users')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(Role.SECRETARY, Role.PRESIDENT)
+@Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 

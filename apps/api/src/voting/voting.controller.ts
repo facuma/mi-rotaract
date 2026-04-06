@@ -17,7 +17,7 @@ export class VotingController {
 
   @Post('vote/open')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   open(
     @Param('meetingId') meetingId: string,
     @Body('topicId') topicId: string,
@@ -28,7 +28,7 @@ export class VotingController {
 
   @Post('vote/close')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   close(
     @Param('meetingId') meetingId: string,
     @Body('voteSessionId') voteSessionId: string,
@@ -62,7 +62,7 @@ export class VotingController {
 
   @Get('vote/:voteSessionId/detailed')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   getDetailed(
     @Param('meetingId') meetingId: string,
     @Param('voteSessionId') voteSessionId: string,

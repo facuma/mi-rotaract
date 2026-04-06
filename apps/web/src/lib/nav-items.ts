@@ -22,7 +22,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: 'Distrito',
     icon: 'building2',
-    roles: ['SECRETARY', 'PRESIDENT'],
+    roles: ['SECRETARY', 'PRESIDENT', 'RDR'],
     children: [
       { href: '/admin/district/informes', label: 'Informes', icon: 'fileText' },
       { href: '/admin/district/clubes', label: 'Clubes', icon: 'users' },
@@ -33,12 +33,12 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/admin/clubs',
     label: 'Clubes',
     icon: 'users',
-    roles: ['SECRETARY', 'PRESIDENT'],
+    roles: ['SECRETARY', 'PRESIDENT', 'RDR'],
   },
   {
     label: 'Mi Club',
     icon: 'building',
-    roles: ['PRESIDENT', 'PARTICIPANT', 'SECRETARY'],
+    roles: ['PRESIDENT', 'RDR', 'PARTICIPANT', 'SECRETARY'],
     children: [
       { href: '/club', label: 'Vista general', icon: 'layoutDashboard' },
       { href: '/club/informes', label: 'Informes', icon: 'fileText' },
@@ -48,7 +48,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: 'Mis Socios',
     icon: 'users',
-    roles: ['PRESIDENT', 'PARTICIPANT', 'SECRETARY'],
+    roles: ['PRESIDENT', 'RDR', 'PARTICIPANT', 'SECRETARY'],
     children: [
       { href: '/club/socios', label: 'Gestión de socios', icon: 'userCog' },
     ],
@@ -62,7 +62,7 @@ export const NAV_ITEMS: NavItem[] = [
         href: '/admin/meetings',
         label: 'Administrar',
         icon: 'settings',
-        roles: ['SECRETARY', 'PRESIDENT'],
+        roles: ['SECRETARY', 'PRESIDENT', 'RDR'],
       },
       { href: '/history', label: 'Historial', icon: 'history' },
     ],
@@ -76,14 +76,14 @@ export const NAV_ITEMS: NavItem[] = [
         href: '/admin/eventos',
         label: 'Administrar',
         icon: 'settings',
-        roles: ['SECRETARY', 'PRESIDENT'],
+        roles: ['SECRETARY', 'PRESIDENT', 'RDR'],
       },
     ],
   },
   {
     label: 'Desarrollo Profesional',
     icon: 'briefcase',
-    roles: ['PRESIDENT', 'PARTICIPANT', 'SECRETARY'],
+    roles: ['PRESIDENT', 'RDR', 'PARTICIPANT', 'SECRETARY'],
     children: [
       {
         href: '/desarrollo-profesional/oportunidades',

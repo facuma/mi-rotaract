@@ -12,6 +12,7 @@ enum Role {
   PARTICIPANT
   SECRETARY
   PRESIDENT
+  RDR
   COMPANY
 }
 
@@ -46,6 +47,23 @@ enum CommitteeStatus {
   ACTIVE
   INACTIVE
   CLOSED
+}
+
+enum MeetingType {
+  ORDINARY
+  EXTRAORDINARY
+}
+
+enum VotingMethod {
+  PUBLIC
+  SECRET
+}
+
+enum MajorityType {
+  SIMPLE
+  ABSOLUTE
+  TWO_THIRDS
+  THREE_QUARTERS
 }
 
 enum MeetingStatus {
@@ -187,6 +205,7 @@ model Club {
   code                     String     @unique
   status                   ClubStatus @default(ACTIVE)
   presidentEmail           String?
+  isConstituido            Boolean    @default(true)
   enabledForDistrictMeetings Boolean  @default(true)
   cuotaAldia               Boolean    @default(false)
   informeAlDia             Boolean    @default(false)
@@ -206,6 +225,8 @@ model Club {
   events                   Event[]
   projects                 Project[]
   auditLogs                AuditLog[]
+  meetingAttendances       ClubMeetingAttendance[]
+  cartasPoder              CartaPoder[]
 }
 
 model Membership {
@@ -252,30 +273,38 @@ model Member {
 }
 
 model Meeting {
-  id             String        @id @default(cuid())
-  title          String
-  description    String?
-  scheduledAt    DateTime?
-  startedAt      DateTime?
-  endedAt       DateTime?
-  status         MeetingStatus @default(DRAFT)
-  currentTopicId String?
-  createdById    String
-  clubId         String
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  creator        User          @relation("MeetingCreator", fields: [createdById], references: [id])
-  club           Club          @relation(fields: [clubId], references: [id])
-  participants   MeetingParticipant[]
-  topics         AgendaTopic[]
-  voteSessions   VoteSession[]
-  speakingRequests SpeakingRequest[]
-  currentSpeakerId String?
-  nextSpeakerId   String?
-  timerSessions  TimerSession[]
-  auditLogs      AuditLog[]
+  id                 String        @id @default(cuid())
+  title              String
+  description        String?
+  scheduledAt        DateTime?
+  startedAt          DateTime?
+  endedAt            DateTime?
+  status             MeetingStatus @default(DRAFT)
+  type               MeetingType   @default(ORDINARY)
+  isDistrictMeeting  Boolean       @default(true)
+  quorumRequired     Int?
+  quorumMet          Boolean       @default(false)
+  isInformationalOnly Boolean      @default(false)
+  currentTopicId     String?
+  createdById        String
+  clubId             String
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  creator            User          @relation("MeetingCreator", fields: [createdById], references: [id])
+  club               Club          @relation(fields: [clubId], references: [id])
+  participants       MeetingParticipant[]
+  topics             AgendaTopic[]
+  voteSessions       VoteSession[]
+  speakingRequests   SpeakingRequest[]
+  currentSpeakerId   String?
+  nextSpeakerId      String?
+  timerSessions      TimerSession[]
+  auditLogs          AuditLog[]
+  clubAttendances    ClubMeetingAttendance[]
+  cartasPoder        CartaPoder[]
   @@index([clubId])
   @@index([status, scheduledAt])
+  @@index([type])
 }
 
 model AgendaTopic {
@@ -304,17 +333,23 @@ enum VoteChoice {
 }
 
 model VoteSession {
-  id        String            @id @default(cuid())
-  meetingId String
-  topicId   String
-  status    VoteSessionStatus @default(OPEN)
-  openedAt  DateTime          @default(now())
-  closedAt  DateTime?
-  openedById String?
-  closedById String?
-  votes     Vote[]
-  topic     AgendaTopic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  meeting   Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  id                  String            @id @default(cuid())
+  meetingId           String
+  topicId             String
+  status              VoteSessionStatus @default(OPEN)
+  votingMethod        VotingMethod      @default(PUBLIC)
+  requiredMajority    MajorityType      @default(SIMPLE)
+  isElection          Boolean           @default(false)
+  rdrTiebreakerUsed   Boolean           @default(false)
+  rdrTiebreakerChoice VoteChoice?
+  openedAt            DateTime          @default(now())
+  closedAt            DateTime?
+  openedById          String?
+  closedById          String?
+  votes               Vote[]
+  sealedVotes         SealedVote[]
+  topic               AgendaTopic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  meeting             Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   @@index([meetingId, status])
 }
 
@@ -322,25 +357,30 @@ model Vote {
   id           String    @id @default(cuid())
   voteSessionId String
   userId      String
+  clubId      String?
   choice      VoteChoice
   createdAt   DateTime  @default(now())
   session     VoteSession @relation(fields: [voteSessionId], references: [id], onDelete: Cascade)
   @@unique([voteSessionId, userId])
   @@index([voteSessionId])
+  @@index([voteSessionId, clubId])
 }
 
 model MeetingParticipant {
-  id              String           @id @default(cuid())
-  meetingId       String
-  userId          String
-  canVote         Boolean          @default(true)
-  attendanceStatus AttendanceStatus @default(INVITED)
-  joinedAt        DateTime?
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  meeting         Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  id                String           @id @default(cuid())
+  meetingId         String
+  userId            String
+  clubId            String?
+  canVote           Boolean          @default(true)
+  isDelegate        Boolean          @default(false)
+  attendanceStatus  AttendanceStatus @default(INVITED)
+  joinedAt          DateTime?
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meeting           Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   @@unique([meetingId, userId])
   @@index([meetingId])
   @@index([userId])
+  @@index([meetingId, clubId])
 }
 
 enum EventStatus {
@@ -359,6 +399,10 @@ enum EventType {
   PROYECTO_SERVICIO
   NETWORKING
   PROFESIONAL
+  CONFERENCIA
+  ERIPA
+  FORO_ZONAL
+  SEMINARIO_INSTRUCTORES
 }
 
 enum EventModality {
@@ -416,6 +460,50 @@ model AuditLog {
   club         Club?    @relation(fields: [clubId], references: [id], onDelete: SetNull)
   @@index([meetingId, createdAt])
   @@index([clubId, createdAt])
+}
+
+model CartaPoder {
+  id              String   @id @default(cuid())
+  meetingId       String
+  clubId          String
+  presidentUserId String
+  delegateUserId  String
+  receivedAt      DateTime @default(now())
+  verified        Boolean  @default(false)
+  verifiedById    String?
+  documentUrl     String?
+  meeting         Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  club            Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  @@unique([meetingId, clubId])
+  @@index([meetingId])
+}
+
+model ClubMeetingAttendance {
+  id             String   @id @default(cuid())
+  meetingId      String
+  clubId         String
+  attendeeUserId String
+  isDelegate     Boolean  @default(false)
+  cartaPoderId   String?
+  createdAt      DateTime @default(now())
+  meeting        Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  club           Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  @@unique([meetingId, clubId])
+  @@index([clubId])
+}
+
+model SealedVote {
+  id            String     @id @default(cuid())
+  voteSessionId String
+  clubId        String
+  choice        VoteChoice
+  priorityOrder Int?
+  documentUrl   String?
+  receivedAt    DateTime   @default(now())
+  receivedById  String?
+  session       VoteSession @relation(fields: [voteSessionId], references: [id], onDelete: Cascade)
+  @@unique([voteSessionId, clubId])
+  @@index([voteSessionId])
 }
 
 model HealthCheck {

@@ -32,7 +32,7 @@ export default function EventoDetallePage() {
   const canEdit =
     user &&
     (user.role === 'SECRETARY' ||
-      (user.role === 'PRESIDENT' && event?.clubId));
+      ((user.role === 'PRESIDENT' || user.role === 'RDR') && event?.clubId));
 
   if (!user) return null;
 

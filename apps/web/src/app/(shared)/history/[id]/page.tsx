@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
-const ADMIN_ROLES = ['SECRETARY', 'PRESIDENT'];
+const ADMIN_ROLES = ['SECRETARY', 'PRESIDENT', 'RDR'];
 
 type VoteSession = {
   id: string;

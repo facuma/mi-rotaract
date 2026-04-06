@@ -71,7 +71,7 @@ export class EventsController {
 
   @Get('bulk/template')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   getBulkTemplate(@Res({ passthrough: false }) res: import('express').Response) {
     const { buffer, filename } = this.eventsService.getBulkTemplate();
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -82,7 +82,7 @@ export class EventsController {
   @Post('bulk')
   @HttpCode(207)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UseInterceptors(FileInterceptor('file'))
   async bulkImport(
     @CurrentUser() user: CurrentUserPayload,
@@ -103,7 +103,7 @@ export class EventsController {
 
   @Post()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true }))
   create(
     @Body() dto: CreateEventDto,
@@ -114,7 +114,7 @@ export class EventsController {
 
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true }))
   update(
     @Param('id') id: string,
@@ -126,7 +126,7 @@ export class EventsController {
 
   @Delete(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   remove(
     @Param('id') id: string,
     @CurrentUser() user: CurrentUserPayload,
@@ -136,7 +136,7 @@ export class EventsController {
 
   @Patch(':id/publish')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   publish(
     @Param('id') id: string,
     @CurrentUser() user: CurrentUserPayload,
@@ -146,7 +146,7 @@ export class EventsController {
 
   @Patch(':id/cancel')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   cancel(
     @Param('id') id: string,
     @CurrentUser() user: CurrentUserPayload,
@@ -156,7 +156,7 @@ export class EventsController {
 
   @Patch(':id/finish')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   markFinished(
     @Param('id') id: string,
     @CurrentUser() user: CurrentUserPayload,
@@ -166,14 +166,14 @@ export class EventsController {
 
   @Get(':id/attachments')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   listAttachments(@Param('id') id: string) {
     return this.attachmentsService.list('event', id);
   }
 
   @Post(':id/attachments')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UseInterceptors(FileInterceptor('file'))
   async uploadAttachment(
     @Param('id') id: string,
@@ -192,7 +192,7 @@ export class EventsController {
 
   @Delete(':id/attachments/:attachmentId')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   deleteAttachment(
     @Param('id') eventId: string,
     @Param('attachmentId') attachmentId: string,

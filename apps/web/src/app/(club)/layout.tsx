@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import { AppShell, AppShellSkeleton } from '@/components/layout/AppShell';
 
 /** Roles que pueden acceder a Mi Club (cualquier miembro del club, incl. usuario común) */
-const CLUB_ROLES = ['PRESIDENT', 'PARTICIPANT', 'SECRETARY'];
+const CLUB_ROLES = ['PRESIDENT', 'RDR', 'PARTICIPANT', 'SECRETARY'];
 
 export default function ClubLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();

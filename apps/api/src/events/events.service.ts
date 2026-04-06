@@ -41,7 +41,7 @@ export class EventsService {
   ): Promise<boolean> {
     if (role === Role.SECRETARY) return true;
     if (role === Role.PARTICIPANT) return false; // DRAFT only - PARTICIPANT never sees DRAFT
-    if (role === Role.PRESIDENT) {
+    if (role === Role.PRESIDENT || role === Role.RDR) {
       if (!event.clubId) return false; // PRESIDENT cannot access draft distrital events
       const clubIds = await this.getPresidentClubIds(userId);
       return clubIds.includes(event.clubId);
@@ -86,7 +86,7 @@ export class EventsService {
     }
 
     // PRESIDENT: always restrict to their clubs (admin sees only events they can manage)
-    if (role === Role.PRESIDENT) {
+    if (role === Role.PRESIDENT || role === Role.RDR) {
       const clubIds = await this.getPresidentClubIds(userId);
       if (clubIds.length === 0) {
         where.clubId = '__no_club__'; // impossible - returns empty
@@ -188,7 +188,7 @@ export class EventsService {
     if (!event) throw new NotFoundException('Evento no encontrado');
 
     if (role === Role.SECRETARY) return { event };
-    if (role === Role.PRESIDENT) {
+    if (role === Role.PRESIDENT || role === Role.RDR) {
       if (!event.clubId) {
         throw new ForbiddenException('Solo el equipo distrital puede gestionar eventos distritales');
       }
@@ -264,7 +264,7 @@ export class EventsService {
 
       let clubId: string | null = row.clubId?.trim() || null;
 
-      if (role === Role.PRESIDENT && !clubId) {
+      if (role === Role.PRESIDENT || role === Role.RDR && !clubId) {
         result.errors.push({
           row: rowNum,
           data: row as Record<string, unknown>,
@@ -285,7 +285,7 @@ export class EventsService {
         continue;
       }
 
-      if (clubId && role === Role.PRESIDENT) {
+      if (clubId && role === Role.PRESIDENT || role === Role.RDR) {
         const clubIds = await this.getPresidentClubIds(userId);
         const club = await this.prisma.club.findFirst({
           where: {
@@ -433,14 +433,14 @@ export class EventsService {
       throw new ForbiddenException('No tenés permiso para crear eventos');
     }
 
-    if (role === Role.PRESIDENT && dto.clubId) {
+    if (role === Role.PRESIDENT || role === Role.RDR && dto.clubId) {
       const clubIds = await this.getPresidentClubIds(userId);
       if (!clubIds.includes(dto.clubId)) {
         throw new ForbiddenException('Solo podés crear eventos para tu club');
       }
     }
 
-    if (role === Role.PRESIDENT && !dto.clubId) {
+    if (role === Role.PRESIDENT || role === Role.RDR && !dto.clubId) {
       throw new ForbiddenException('Los presidentes deben asociar un club al evento');
     }
 
@@ -470,7 +470,7 @@ export class EventsService {
   async update(id: string, dto: UpdateEventDto, userId: string, role: Role) {
     await this.assertCanManageEvent(id, userId, role);
 
-    if (dto.clubId !== undefined && role === Role.PRESIDENT) {
+    if (dto.clubId !== undefined && role === Role.PRESIDENT || role === Role.RDR) {
       const clubIds = await this.getPresidentClubIds(userId);
       if (!clubIds.includes(dto.clubId)) {
         throw new ForbiddenException('Solo podés asignar tu club al evento');
