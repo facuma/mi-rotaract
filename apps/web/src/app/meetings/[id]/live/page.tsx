@@ -8,6 +8,7 @@ import { VoteResultSummary } from '@/components/VoteResultSummary';
 import { CurrentTopicCard } from '@/components/CurrentTopicCard';
 import { SpeakingQueueList } from '@/components/SpeakingQueueList';
 import { RequestToSpeakButton } from '@/components/RequestToSpeakButton';
+import { QuorumIndicator } from '@/components/meetings/QuorumIndicator';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -62,6 +63,16 @@ export default function ParticipantLivePage() {
 
       {snapshot && (
         <>
+          {/* Quorum indicator */}
+          {snapshot.quorum && (
+            <QuorumIndicator
+              required={snapshot.quorum.required}
+              present={snapshot.quorum.present}
+              met={snapshot.quorum.met}
+              isInformationalOnly={snapshot.quorum.isInformationalOnly}
+            />
+          )}
+
           {/* Current topic */}
           <CurrentTopicCard
             topic={snapshot.currentTopic ?? { title: '—' }}

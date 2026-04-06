@@ -5,11 +5,12 @@ import { ClubsModule } from '../clubs/clubs.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { MeetingsController } from './meetings.controller';
 import { MeetingsService } from './meetings.service';
+import { QuorumService } from './quorum.service';
 
 @Module({
   imports: [AuditModule, AttachmentsModule, ClubsModule, RealtimeModule],
   controllers: [MeetingsController],
-  providers: [MeetingsService],
-  exports: [MeetingsService],
+  providers: [MeetingsService, QuorumService],
+  exports: [MeetingsService, QuorumService],
 })
 export class MeetingsModule {}

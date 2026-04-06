@@ -29,6 +29,7 @@ export default function NewMeetingPage() {
   const [description, setDescription] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [clubId, setClubId] = useState('');
+  const [meetingType, setMeetingType] = useState('ORDINARY');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -46,6 +47,7 @@ export default function NewMeetingPage() {
         description: description.trim() || undefined,
         scheduledAt: scheduledAt || undefined,
         clubId: clubId || clubs[0]?.id,
+        type: meetingType,
       })) as { id: string };
       router.push(`/admin/meetings/${m.id}`);
     } catch (err) {
@@ -102,8 +104,25 @@ export default function NewMeetingPage() {
                 </div>
               </FormSection>
 
-              <FormSection title="Programación" description="Fecha y club de la reunión.">
+              <FormSection title="Programación" description="Tipo, fecha y club de la reunión.">
                 <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Tipo de reunión</Label>
+                    <Select value={meetingType} onValueChange={setMeetingType}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ORDINARY">Ordinaria (Art. 37)</SelectItem>
+                        <SelectItem value="EXTRAORDINARY">Extraordinaria (Art. 39)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {meetingType === 'ORDINARY'
+                        ? 'Preaviso de 15 días. Mínimo 4 por período.'
+                        : 'Preaviso de 30 días (presencial) o 15 días (virtual).'}
+                    </p>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="scheduledAt">Fecha programada</Label>
                     <Input

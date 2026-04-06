@@ -89,7 +89,7 @@ export const meetingsApi = {
   bulkImportParticipants: (meetingId: string, file: File, mode?: 'partial' | 'strict') =>
     bulkImportApi(`/meetings/${meetingId}/participants/bulk`, file, mode),
   get: (id: string) => api<unknown>(`/meetings/${id}`),
-  create: (body: { title: string; description?: string; scheduledAt?: string; clubId: string }) =>
+  create: (body: { title: string; description?: string; scheduledAt?: string; clubId: string; type?: string; isDistrictMeeting?: boolean }) =>
     api<unknown>('/meetings', { method: 'POST', body: JSON.stringify(body) }),
   update: (id: string, body: { title?: string; description?: string; scheduledAt?: string }) =>
     api<unknown>(`/meetings/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
@@ -140,15 +140,28 @@ export const queueApi = {
 };
 
 export const votingApi = {
-  open: (meetingId: string, topicId: string) =>
-    api<unknown>(`/meetings/${meetingId}/vote/open`, { method: 'POST', body: JSON.stringify({ topicId }) }),
+  open: (meetingId: string, topicId: string, options?: { votingMethod?: string; requiredMajority?: string; isElection?: boolean }) =>
+    api<unknown>(`/meetings/${meetingId}/vote/open`, { method: 'POST', body: JSON.stringify({ topicId, ...options }) }),
   close: (meetingId: string, voteSessionId: string) =>
     api<unknown>(`/meetings/${meetingId}/vote/close`, { method: 'POST', body: JSON.stringify({ voteSessionId }) }),
   vote: (meetingId: string, voteSessionId: string, choice: 'YES' | 'NO' | 'ABSTAIN') =>
     api<unknown>(`/meetings/${meetingId}/vote`, { method: 'POST', body: JSON.stringify({ voteSessionId, choice }) }),
+  rdrTiebreaker: (meetingId: string, voteSessionId: string, choice: 'YES' | 'NO' | 'ABSTAIN') =>
+    api<unknown>(`/meetings/${meetingId}/vote/rdr-tiebreaker`, { method: 'POST', body: JSON.stringify({ voteSessionId, choice }) }),
   current: (meetingId: string) => api<unknown>(`/meetings/${meetingId}/vote/current`),
   result: (meetingId: string, voteSessionId: string) =>
-    api<{ yes: number; no: number; abstain: number; total: number }>(`/meetings/${meetingId}/vote/${voteSessionId}/result`),
+    api<unknown>(`/meetings/${meetingId}/vote/${voteSessionId}/result`),
+};
+
+export const cartaPoderApi = {
+  create: (meetingId: string, body: { clubId: string; delegateUserId: string; documentUrl?: string }) =>
+    api<unknown>(`/meetings/${meetingId}/carta-poder`, { method: 'POST', body: JSON.stringify(body) }),
+  list: (meetingId: string) =>
+    api<unknown[]>(`/meetings/${meetingId}/carta-poder`),
+  verify: (meetingId: string, cpId: string) =>
+    api<unknown>(`/meetings/${meetingId}/carta-poder/${cpId}/verify`, { method: 'PATCH' }),
+  remove: (meetingId: string, cpId: string) =>
+    api<unknown>(`/meetings/${meetingId}/carta-poder/${cpId}`, { method: 'DELETE' }),
 };
 
 export const topicsApi = {

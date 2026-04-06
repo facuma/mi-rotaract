@@ -9,6 +9,9 @@ const WS_URL = process.env.NEXT_PUBLIC_WS_URL || process.env.NEXT_PUBLIC_API_URL
 export type MeetingSnapshot = {
   meetingId: string;
   status: string;
+  meetingType?: string;
+  isDistrictMeeting?: boolean;
+  isInformationalOnly?: boolean;
   currentTopicId: string | null;
   currentTopic: { id: string; title: string; type: string } | null;
   topics: { id: string; title: string; order: number; type: string; status: string }[];
@@ -16,6 +19,8 @@ export type MeetingSnapshot = {
     id: string;
     topicId: string;
     topicTitle: string;
+    votingMethod?: string;
+    requiredMajority?: string;
   } | null;
   speakingQueue?: { id: string; userId: string; fullName: string; position: number; status?: string }[];
   currentSpeaker?: { id: string; fullName: string } | null;
@@ -27,24 +32,35 @@ export type MeetingSnapshot = {
     remainingSec: number;
     overtimeSec: number;
   } | null;
+  quorum?: {
+    required: number;
+    present: number;
+    met: boolean;
+    isInformationalOnly: boolean;
+  } | null;
 };
 
-export type VoteResult = { voteSessionId: string; yes: number; no: number; abstain: number; total: number };
+export type VoteResult = { voteSessionId: string; yes: number; no: number; abstain: number; total: number; approved?: boolean | null; isTied?: boolean; requiredMajority?: string };
 
 function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
-  const meeting = data.meeting as { id?: string; status?: string } | undefined;
-  const activeVote = data.activeVote as { voteSessionId?: string; topicId?: string; topicTitle?: string } | undefined;
+  const meeting = data.meeting as { id?: string; status?: string; type?: string; isDistrictMeeting?: boolean; isInformationalOnly?: boolean } | undefined;
+  const activeVote = data.activeVote as { voteSessionId?: string; topicId?: string; topicTitle?: string; votingMethod?: string; requiredMajority?: string } | undefined;
+  const quorum = data.quorum as MeetingSnapshot['quorum'] ?? null;
   const timers = (data.timers as Array<{ id: string; type: string; plannedDurationSec: number; elapsedSec?: number }>) ?? [];
   const firstTimer = timers[0];
   return {
     meetingId: meeting?.id ?? '',
     status: meeting?.status ?? '',
+    meetingType: meeting?.type,
+    isDistrictMeeting: meeting?.isDistrictMeeting,
+    isInformationalOnly: meeting?.isInformationalOnly,
     currentTopicId: (data.currentTopic as { id?: string })?.id ?? null,
     currentTopic: data.currentTopic as MeetingSnapshot['currentTopic'],
     topics: (data.topics as MeetingSnapshot['topics']) ?? [],
     activeVoteSession: activeVote
-      ? { id: activeVote.voteSessionId ?? '', topicId: activeVote.topicId ?? '', topicTitle: activeVote.topicTitle ?? '' }
+      ? { id: activeVote.voteSessionId ?? '', topicId: activeVote.topicId ?? '', topicTitle: activeVote.topicTitle ?? '', votingMethod: activeVote.votingMethod, requiredMajority: activeVote.requiredMajority }
       : null,
+    quorum,
     speakingQueue: ((data.speakingQueue as Array<{ id: string; userId: string; fullName?: string; user?: { fullName?: string }; position: number; status?: string }>) ?? []).map((r) => ({
       id: r.id,
       userId: r.userId,

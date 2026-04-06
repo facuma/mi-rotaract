@@ -1,4 +1,5 @@
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { MeetingType } from '@prisma/client';
 
 export class CreateMeetingDto {
   @IsString()
@@ -14,4 +15,12 @@ export class CreateMeetingDto {
 
   @IsString()
   clubId: string;
+
+  @IsOptional()
+  @IsEnum(MeetingType)
+  type?: MeetingType;
+
+  @IsOptional()
+  @IsBoolean()
+  isDistrictMeeting?: boolean;
 }

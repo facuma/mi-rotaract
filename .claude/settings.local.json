@@ -3,7 +3,10 @@
     "allow": [
       "Bash(ssh mi-vps-facu:*)",
       "Bash(npx vercel:*)",
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Bash(pnpm --filter api build)",
+      "Bash(pnpm --filter web build)",
+      "Bash(pnpm --filter @mi-rotaract/shared-types build)"
     ]
   }
 }

@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Role } from '@prisma/client';
+import { MajorityType, Role, VotingMethod } from '@prisma/client';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -20,10 +20,19 @@ export class VotingController {
   @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   open(
     @Param('meetingId') meetingId: string,
-    @Body('topicId') topicId: string,
+    @Body() body: {
+      topicId: string;
+      votingMethod?: VotingMethod;
+      requiredMajority?: MajorityType;
+      isElection?: boolean;
+    },
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.votingService.openVote(meetingId, topicId, user.id);
+    return this.votingService.openVote(meetingId, body.topicId, user.id, {
+      votingMethod: body.votingMethod,
+      requiredMajority: body.requiredMajority,
+      isElection: body.isElection,
+    });
   }
 
   @Post('vote/close')
@@ -35,6 +44,19 @@ export class VotingController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.votingService.closeVote(meetingId, voteSessionId, user.id);
+  }
+
+  /** Art. 49: RDR tiebreaker – only RDR can use, only on tied votes */
+  @Post('vote/rdr-tiebreaker')
+  @UseGuards(RolesGuard)
+  @Roles(Role.RDR)
+  rdrTiebreaker(
+    @Param('meetingId') meetingId: string,
+    @Body('voteSessionId') voteSessionId: string,
+    @Body('choice') choice: 'YES' | 'NO' | 'ABSTAIN',
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.votingService.submitRdrTiebreaker(meetingId, voteSessionId, user.id, choice);
   }
 
   @Post('vote')

@@ -5,13 +5,14 @@ import {
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { MeetingStatus, Role } from '@prisma/client';
+import { MeetingStatus, MeetingType, Role } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { ClubsService } from '../clubs/clubs.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CsvParserService } from '../common/bulk/csv-parser.service';
 import { BulkImportResult } from '../common/bulk/bulk-result.types';
+import { QuorumService } from './quorum.service';
 import { AssignParticipantsDto } from './dto/assign-participants.dto';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
 import { UpdateMeetingDto } from './dto/update-meeting.dto';
@@ -24,6 +25,7 @@ export class MeetingsService {
     private readonly clubsService: ClubsService,
     private readonly realtime: RealtimeGateway,
     private readonly csvParser: CsvParserService,
+    private readonly quorum: QuorumService,
   ) {}
 
   getBulkTemplate(): { buffer: Buffer; filename: string } {
@@ -324,12 +326,20 @@ export class MeetingsService {
   }
 
   async create(dto: CreateMeetingDto, createdById: string) {
+    const isDistrict = dto.isDistrictMeeting ?? true;
+    const quorumRequired = isDistrict
+      ? await this.quorum.calculateQuorumRequirement()
+      : null;
+
     const meeting = await this.prisma.meeting.create({
       data: {
         title: dto.title,
         description: dto.description ?? null,
         scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
         status: MeetingStatus.DRAFT,
+        type: dto.type ?? MeetingType.ORDINARY,
+        isDistrictMeeting: isDistrict,
+        quorumRequired,
         createdById,
         clubId: dto.clubId,
       },
@@ -416,12 +426,27 @@ export class MeetingsService {
 
   async start(id: string, actorUserId: string) {
     const meeting = await this.prisma.meeting.findUnique({ where: { id } });
-    if (!meeting) throw new NotFoundException('Reuni?n no encontrada');
+    if (!meeting) throw new NotFoundException('Reunión no encontrada');
     if (meeting.status !== MeetingStatus.SCHEDULED && meeting.status !== MeetingStatus.DRAFT)
-      throw new BadRequestException('Solo se puede iniciar una reuni?n programada o en borrador');
+      throw new BadRequestException('Solo se puede iniciar una reunión programada o en borrador');
+
+    // Art. 41-42: Check quorum on start for district meetings
+    let quorumMet = true;
+    let isInformationalOnly = false;
+    if (meeting.isDistrictMeeting) {
+      const quorumStatus = await this.quorum.checkQuorum(id);
+      quorumMet = quorumStatus.met;
+      isInformationalOnly = !quorumMet; // Art. 42: no quorum = informational only
+    }
+
     const updated = await this.prisma.meeting.update({
       where: { id },
-      data: { status: MeetingStatus.LIVE, startedAt: new Date() },
+      data: {
+        status: MeetingStatus.LIVE,
+        startedAt: new Date(),
+        quorumMet,
+        isInformationalOnly,
+      },
       include: { club: true },
     });
     await this.audit.log({

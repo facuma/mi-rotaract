@@ -67,13 +67,18 @@ export function AdminLiveControls({
 }: AdminLiveControlsProps) {
   const [closing, setClosing] = useState(false);
   const [confirmCloseVote, setConfirmCloseVote] = useState(false);
+  const [votingMethod, setVotingMethod] = useState('PUBLIC');
+  const [requiredMajority, setRequiredMajority] = useState('SIMPLE');
   const [timerDuration, setTimerDuration] = useState('300');
   const [startingTimer, setStartingTimer] = useState(false);
   const [stoppingTimer, setStoppingTimer] = useState(false);
 
   async function openVote(topicId: string) {
     try {
-      await votingApi.open(meetingId, topicId);
+      await votingApi.open(meetingId, topicId, {
+        votingMethod: votingMethod as 'PUBLIC' | 'SECRET',
+        requiredMajority: requiredMajority as string,
+      });
       toast.success('Votación abierta.');
       onVoteOpened?.();
     } catch (e) {
@@ -214,7 +219,7 @@ export function AdminLiveControls({
       </FormSection>
 
       {/* Voting section */}
-      <FormSection title="Votación" description="Abrí o cerrá votaciones en el tema actual.">
+      <FormSection title="Votación" description="Abrí o cerrá votaciones en el tema actual (Art. 44-50).">
         {activeVoteSession ? (
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="info">Abierta</Badge>
@@ -228,11 +233,34 @@ export function AdminLiveControls({
             </Button>
           </div>
         ) : currentTopic ? (
-          <Button
-            onClick={() => openVote(currentTopic.id)}
-          >
-            Abrir votación: {currentTopic.title}
-          </Button>
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <Select value={votingMethod} onValueChange={setVotingMethod}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PUBLIC">Pública</SelectItem>
+                  <SelectItem value="SECRET">Secreta</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={requiredMajority} onValueChange={setRequiredMajority}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SIMPLE">Mayoría Simple</SelectItem>
+                  <SelectItem value="TWO_THIRDS">Dos Tercios</SelectItem>
+                  <SelectItem value="THREE_QUARTERS">Tres Cuartos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={() => openVote(currentTopic.id)}
+            >
+              Abrir votación: {currentTopic.title}
+            </Button>
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground">Seleccioná un tema primero.</p>
         )}

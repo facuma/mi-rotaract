@@ -8,6 +8,9 @@ type VoteResultSummaryProps = {
   no: number;
   abstain: number;
   total: number;
+  approved?: boolean | null;
+  isTied?: boolean;
+  requiredMajority?: string;
   className?: string;
 };
 
@@ -16,13 +19,23 @@ export function VoteResultSummary({
   no,
   abstain,
   total,
+  approved: approvedProp,
+  isTied,
+  requiredMajority,
   className,
 }: VoteResultSummaryProps) {
   const voted = yes + no + abstain;
   const pctYes = voted > 0 ? Math.round((yes / voted) * 100) : 0;
   const pctNo = voted > 0 ? Math.round((no / voted) * 100) : 0;
   const pctAbstain = voted > 0 ? Math.round((abstain / voted) * 100) : 0;
-  const approved = yes > no;
+  const approved = approvedProp ?? (voted > 0 ? yes > no : null);
+
+  const MAJORITY_LABELS: Record<string, string> = {
+    SIMPLE: 'Mayoría Simple',
+    ABSOLUTE: 'Mayoría Absoluta',
+    TWO_THIRDS: 'Dos Tercios',
+    THREE_QUARTERS: 'Tres Cuartos',
+  };
 
   return (
     <div
@@ -32,12 +45,21 @@ export function VoteResultSummary({
       )}
     >
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-foreground">Resultado</p>
-        {voted > 0 && (
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-foreground">Resultado</p>
+          {requiredMajority && (
+            <span className="text-xs text-muted-foreground">
+              ({MAJORITY_LABELS[requiredMajority] ?? requiredMajority})
+            </span>
+          )}
+        </div>
+        {isTied ? (
+          <Badge variant="warning">Empate — Desempate RDR (Art. 49)</Badge>
+        ) : voted > 0 && approved !== null ? (
           <Badge variant={approved ? 'success' : 'destructive'}>
             {approved ? 'Aprobada' : 'Rechazada'}
           </Badge>
-        )}
+        ) : null}
       </div>
 
       {/* Stats row */}

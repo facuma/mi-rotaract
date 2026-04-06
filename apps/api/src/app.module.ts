@@ -27,6 +27,7 @@ import { TalentModule } from './talent/talent.module';
 import { TimersModule } from './timers/timers.module';
 import { TopicsModule } from './topics/topics.module';
 import { VotingModule } from './voting/voting.module';
+import { CartaPoderModule } from './carta-poder/carta-poder.module';
 
 @Module({
   imports: [
@@ -39,7 +40,7 @@ import { VotingModule } from './voting/voting.module';
     PrismaModule,
     AuthModule,
     AuditModule,
-    ClubsModule, ClubModule, ClubReportsModule, DashboardModule, AttachmentsModule, ClubProjectsModule, ClubMembersModule, DistrictModule, EventsModule, HistoryModule, MeetingsModule, OpportunitiesModule, ProfileModule, RealtimeModule, SpeakingQueueModule, TalentModule, TimersModule, TopicsModule, VotingModule, CompaniesModule,
+    ClubsModule, ClubModule, ClubReportsModule, DashboardModule, AttachmentsModule, ClubProjectsModule, ClubMembersModule, DistrictModule, EventsModule, HistoryModule, MeetingsModule, OpportunitiesModule, ProfileModule, RealtimeModule, SpeakingQueueModule, TalentModule, TimersModule, TopicsModule, VotingModule, CompaniesModule, CartaPoderModule,
   ],
   controllers: [AppController],
 })

@@ -7,6 +7,7 @@ import { VoteResultSummary } from '@/components/VoteResultSummary';
 import { CurrentTopicCard } from '@/components/CurrentTopicCard';
 import { SpeakingQueueList } from '@/components/SpeakingQueueList';
 import { AdminLiveControls } from '@/components/AdminLiveControls';
+import { QuorumIndicator } from '@/components/meetings/QuorumIndicator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -66,7 +67,18 @@ export default function AdminLivePage() {
 
       {/* Main content */}
       {snapshot && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6">
+          {/* Quorum indicator for district meetings */}
+          {snapshot.quorum && (
+            <QuorumIndicator
+              required={snapshot.quorum.required}
+              present={snapshot.quorum.present}
+              met={snapshot.quorum.met}
+              isInformationalOnly={snapshot.quorum.isInformationalOnly}
+            />
+          )}
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Left column: monitoring */}
           <div className="space-y-6 lg:col-span-2">
             <CurrentTopicCard
@@ -114,6 +126,7 @@ export default function AdminLivePage() {
               </CardContent>
             </Card>
           </div>
+        </div>
         </div>
       )}
     </div>
