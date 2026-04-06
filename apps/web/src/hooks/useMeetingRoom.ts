@@ -38,6 +38,7 @@ export type MeetingSnapshot = {
     met: boolean;
     isInformationalOnly: boolean;
   } | null;
+  clubAttendance?: { clubId: string; clubName: string; connected: boolean }[];
 };
 
 export type VoteResult = { voteSessionId: string; yes: number; no: number; abstain: number; total: number; approved?: boolean | null; isTied?: boolean; requiredMajority?: string };
@@ -79,6 +80,7 @@ function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
           overtimeSec: Math.max(0, (firstTimer.elapsedSec ?? 0) - firstTimer.plannedDurationSec),
         }
       : null,
+    clubAttendance: (data.clubAttendance as MeetingSnapshot['clubAttendance']) ?? [],
   };
 }
 

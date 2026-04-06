@@ -283,6 +283,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         topics: { orderBy: { order: 'asc' } },
         voteSessions: { where: { status: 'OPEN' }, include: { topic: true } },
         participants: { include: { user: { select: { id: true, fullName: true } } } },
+        clubAttendances: { include: { club: { select: { id: true, name: true } } } },
         speakingRequests: {
           where: { status: { in: ['PENDING', 'ACCEPTED'] } },
           orderBy: { position: 'asc' },
@@ -430,9 +431,15 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       nextSpeaker: nextSpeaker ? { id: nextSpeaker.id, fullName: nextSpeaker.fullName } : null,
       participants: meeting.participants.map((p) => ({
         userId: p.userId,
+        clubId: p.clubId,
         fullName: p.user.fullName,
         attendanceStatus: p.attendanceStatus,
         canVote: p.canVote,
+      })),
+      clubAttendance: meeting.clubAttendances.map((a) => ({
+        clubId: a.clubId,
+        clubName: a.club.name,
+        connected: this.getConnectedClubIds(meetingId).includes(a.clubId),
       })),
     };
   }
