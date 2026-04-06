@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { historyApi } from '@/lib/api';
+import { historyApi, actaApi } from '@/lib/api';
 import { AuditSidebar } from '@/components/AuditSidebar';
+import { ActaEditor } from '@/components/meetings/ActaEditor';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,35 +22,54 @@ type VoteSession = {
   closedAt?: string;
 };
 
+type Acta = {
+  id: string;
+  status: string;
+  contentJson: string;
+  publishedAt?: string;
+};
+
 export default function HistoryMeetingPage() {
   const params = useParams();
   const id = params.id as string;
   const { user } = useAuth();
-  const [meeting, setMeeting] = useState<{ title: string } | null>(null);
+  const [meeting, setMeeting] = useState<{ title: string; status: string } | null>(null);
   const [voteSessions, setVoteSessions] = useState<VoteSession[]>([]);
+  const [acta, setActa] = useState<Acta | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [generatingActa, setGeneratingActa] = useState(false);
   const isAdmin = user && ADMIN_ROLES.includes(user.role);
+  const isSecretary = user?.role === 'SECRETARY';
+
+  async function loadData() {
+    if (!id || !user) return;
+    try {
+      const m = await historyApi.meeting(id);
+      setMeeting(m as { title: string; status: string } | null);
+      if (ADMIN_ROLES.includes(user.role)) {
+        try {
+          const vs = await historyApi.voteSessions(id);
+          setVoteSessions(vs as VoteSession[]);
+        } catch {
+          setVoteSessions([]);
+        }
+      }
+      // Load acta
+      try {
+        const a = await actaApi.get(id);
+        setActa(a as Acta | null);
+      } catch {
+        setActa(null);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    if (!id || !user) return;
-    const load = async () => {
-      try {
-        const m = await historyApi.meeting(id);
-        setMeeting(m as { title: string } | null);
-        if (ADMIN_ROLES.includes(user.role)) {
-          try {
-            const vs = await historyApi.voteSessions(id);
-            setVoteSessions(vs as VoteSession[]);
-          } catch {
-            setVoteSessions([]);
-          }
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user]);
 
   async function handleExportCsv() {
@@ -64,21 +84,26 @@ export default function HistoryMeetingPage() {
     }
   }
 
+  async function handleGenerateActa() {
+    setGeneratingActa(true);
+    try {
+      const a = await actaApi.generate(id);
+      setActa(a as Acta);
+      toast.success('Acta generada.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al generar acta.');
+    } finally {
+      setGeneratingActa(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col gap-6 lg:flex-row">
-        <Card className="flex-1">
-          <CardHeader>
-            <Skeleton className="h-7 w-48" />
-            <Skeleton className="h-4 w-64" />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Skeleton className="h-6 w-full" />
-              <Skeleton className="h-6 w-full" />
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex-1 space-y-6">
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-48 w-full rounded-xl" />
+        </div>
         <AuditSidebar meetingId={id} />
       </div>
     );
@@ -94,6 +119,8 @@ export default function HistoryMeetingPage() {
     );
   }
 
+  const isFinished = meeting.status === 'FINISHED' || meeting.status === 'ARCHIVED';
+
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
       <div className="min-w-0 flex-1 space-y-6">
@@ -103,6 +130,31 @@ export default function HistoryMeetingPage() {
             <CardDescription>Detalle y auditoría de la reunión.</CardDescription>
           </CardHeader>
         </Card>
+
+        {/* Acta section */}
+        {isFinished && acta && (
+          <ActaEditor
+            meetingId={id}
+            acta={acta}
+            canEdit={!!isSecretary}
+            onUpdated={loadData}
+          />
+        )}
+
+        {isFinished && !acta && isSecretary && (
+          <Card>
+            <CardContent className="p-6 text-center space-y-3">
+              <p className="text-sm text-muted-foreground">
+                No se generó acta para esta reunión.
+              </p>
+              <Button disabled={generatingActa} onClick={handleGenerateActa}>
+                {generatingActa ? 'Generando...' : 'Generar acta'}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Votes section */}
         {isAdmin && (
           <Card>
             <CardHeader>

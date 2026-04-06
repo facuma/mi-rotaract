@@ -13,6 +13,7 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CsvParserService } from '../common/bulk/csv-parser.service';
 import { BulkImportResult } from '../common/bulk/bulk-result.types';
 import { QuorumService } from './quorum.service';
+import { ActaService } from './acta.service';
 import { AssignParticipantsDto } from './dto/assign-participants.dto';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
 import { UpdateMeetingDto } from './dto/update-meeting.dto';
@@ -26,6 +27,7 @@ export class MeetingsService {
     private readonly realtime: RealtimeGateway,
     private readonly csvParser: CsvParserService,
     private readonly quorum: QuorumService,
+    private readonly acta: ActaService,
   ) {}
 
   getBulkTemplate(): { buffer: Buffer; filename: string } {
@@ -528,6 +530,14 @@ export class MeetingsService {
       entityId: id,
     });
     await this.realtime.broadcastSnapshot(id);
+
+    // Auto-generate acta draft (Art. 27a)
+    try {
+      await this.acta.generateDraft(id);
+    } catch {
+      // Non-blocking: if acta generation fails, meeting is still finished
+    }
+
     return updated;
   }
 

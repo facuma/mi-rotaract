@@ -54,6 +54,11 @@ enum MeetingType {
   EXTRAORDINARY
 }
 
+enum ActaStatus {
+  DRAFT
+  PUBLISHED
+}
+
 enum VotingMethod {
   PUBLIC
   SECRET
@@ -302,6 +307,7 @@ model Meeting {
   auditLogs          AuditLog[]
   clubAttendances    ClubMeetingAttendance[]
   cartasPoder        CartaPoder[]
+  acta               MeetingActa?
   @@index([clubId])
   @@index([status, scheduledAt])
   @@index([type])
@@ -504,6 +510,18 @@ model SealedVote {
   session       VoteSession @relation(fields: [voteSessionId], references: [id], onDelete: Cascade)
   @@unique([voteSessionId, clubId])
   @@index([voteSessionId])
+}
+
+model MeetingActa {
+  id            String     @id @default(cuid())
+  meetingId     String     @unique
+  status        ActaStatus @default(DRAFT)
+  contentJson   String     @db.Text
+  publishedAt   DateTime?
+  publishedById String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  meeting       Meeting    @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 }
 
 model HealthCheck {

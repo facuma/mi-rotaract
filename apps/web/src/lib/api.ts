@@ -1163,3 +1163,26 @@ export const historyApi = {
     URL.revokeObjectURL(url);
   },
 };
+
+export const actaApi = {
+  get: (meetingId: string) => api<unknown>(`/meetings/${meetingId}/acta`),
+  generate: (meetingId: string) => api<unknown>(`/meetings/${meetingId}/acta/generate`, { method: 'POST' }),
+  update: (meetingId: string, contentJson: string) =>
+    api<unknown>(`/meetings/${meetingId}/acta`, { method: 'PATCH', body: JSON.stringify({ contentJson }) }),
+  publish: (meetingId: string) => api<unknown>(`/meetings/${meetingId}/acta/publish`, { method: 'POST' }),
+  downloadPdf: async (meetingId: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('mi_rotaract_token') : null;
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/meetings/${meetingId}/acta/pdf`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+    );
+    if (!res.ok) throw new Error('Error al descargar PDF');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `acta-${meetingId}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+};
