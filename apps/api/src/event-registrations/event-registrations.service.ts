@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -46,7 +46,7 @@ export class EventRegistrationsService {
   ) {}
 
   async register(eventId: string, dto: CreateRegistrationDto, actor: any) {
-    if (actor && actor.role === Role.USER) {
+    if (actor && actor.role === Role.PARTICIPANT) {
       await this.membershipCheck.requireActiveMembership(actor.id);
     }
     const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: eventLite });
@@ -137,7 +137,7 @@ export class EventRegistrationsService {
       where: { id: eventId },
       select: { clubId: true, cancellationClosesAt: true, endsAt: true },
     });
-    if (!isOwner && actor.role !== Role.DISTRICT_SECRETARY) {
+    if (!isOwner && actor.role !== Role.SECRETARY) {
       const memberships = await this.prisma.membership.findMany({
         where: { userId: actor.id, isPresident: true },
         select: { clubId: true },
@@ -145,7 +145,7 @@ export class EventRegistrationsService {
       const clubIds = memberships.map((m) => m.clubId);
       if (!event?.clubId || !clubIds.includes(event.clubId)) throw new ForbiddenException('No podés cancelar esta inscripción');
     }
-    if (actor.role !== Role.DISTRICT_SECRETARY) {
+    if (actor.role !== Role.SECRETARY) {
       const now = new Date();
       if (event?.cancellationClosesAt && now > event.cancellationClosesAt)
         throw new ConflictException('La ventana de cancelación ya cerró. Contactá a un secretario.');

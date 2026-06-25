@@ -1,4 +1,4 @@
-import {
+﻿import {
   Body,
   Controller,
   Get,
@@ -31,7 +31,7 @@ export class EventPaymentsController {
 
   @Put('ticket')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   upsertTicket(@Param('id') eventId: string, @Body() dto: UpsertTicketDto, @CurrentUser() actor: any) {
     return this.service.upsertTicket(eventId, dto, actor.id);
@@ -45,7 +45,7 @@ export class EventPaymentsController {
 
   @Put('installments')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   upsertInstallments(
     @Param('id') eventId: string,
@@ -57,21 +57,21 @@ export class EventPaymentsController {
 
   @Get('payments')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   listPayments(@Param('id') eventId: string) {
     return this.service.listPayments(eventId);
   }
 
   @Get('payments/summary')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   getSummary(@Param('id') eventId: string) {
     return this.service.getPaymentSummary(eventId);
   }
 
   @Post('registrations/:regId/payments/:installmentId/record')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   record(
     @Param('id') eventId: string,
@@ -85,7 +85,7 @@ export class EventPaymentsController {
 
   @Post('registrations/:regId/payments/:installmentId/waive')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY)
+  @Roles(Role.SECRETARY)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   waive(
     @Param('id') eventId: string,

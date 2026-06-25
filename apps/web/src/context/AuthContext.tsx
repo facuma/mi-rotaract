@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { AuthUser, LoginResponse } from '@mi-rotaract/shared-types';
+import type { AuthUser, LoginResponse } from '@/types/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 if (!API_URL) {

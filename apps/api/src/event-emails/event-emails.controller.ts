@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+﻿import { Body, Controller, Get, Param, Put, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { EmailTemplateType, Role } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -12,14 +12,14 @@ export class EventEmailsController {
   constructor(private readonly service: EventEmailsService) {}
 
   @Get('email-templates')
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   async listTemplates(@Param('id') eventId: string) {
     await this.service.assertEventExists(eventId);
     return this.service.listTemplates(eventId);
   }
 
   @Put('email-templates/:type')
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true }))
   async upsertTemplate(
     @Param('id') eventId: string,
@@ -31,7 +31,7 @@ export class EventEmailsController {
   }
 
   @Get('email-logs')
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   async logs(@Param('id') eventId: string) {
     await this.service.assertEventExists(eventId);
     return this.service.listLogs(eventId);

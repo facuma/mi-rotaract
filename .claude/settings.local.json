@@ -9,7 +9,9 @@
       "Bash(pnpm --filter @mi-rotaract/shared-types build)",
       "Bash(pnpm --filter api add pdfkit)",
       "Bash(pnpm --filter api add -D @types/pdfkit)",
-      "Bash(find . -name \"*.ts\" -type f -exec grep -l \"recordClubAttendance\" {} \\\\;)"
+      "Bash(find . -name \"*.ts\" -type f -exec grep -l \"recordClubAttendance\" {} \\\\;)",
+      "Bash(xargs cat:*)",
+      "Bash(pnpm install:*)"
     ]
   }
 }

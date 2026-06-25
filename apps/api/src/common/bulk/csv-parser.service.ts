@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { neutralizeCsvFormula } from './csv-safe';
 
 const UTF8_BOM = '\uFEFF';
 const MAX_ROWS = 500;
@@ -93,10 +94,11 @@ export class CsvParserService {
   }
 
   private escapeCsvValue(val: string): string {
-    if (val.includes(',') || val.includes('"') || val.includes('\n')) {
-      return '"' + val.replace(/"/g, '""') + '"';
+    const safe = String(neutralizeCsvFormula(val) ?? '');
+    if (safe.includes(',') || safe.includes('"') || safe.includes('\n')) {
+      return '"' + safe.replace(/"/g, '""') + '"';
     }
-    return val;
+    return safe;
   }
 
   /**

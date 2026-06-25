@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
+﻿import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Role } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -12,7 +12,7 @@ export class EventRegistrationFormsController {
 
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   get(@Param('id') eventId: string) {
     return this.service.get(eventId);
   }
@@ -24,7 +24,7 @@ export class EventRegistrationFormsController {
 
   @Put()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   upsert(@Param('id') eventId: string, @Body() body: any, @CurrentUser() actor: { id: string }) {
     return this.service.upsert(eventId, body?.schema, actor.id);
   }

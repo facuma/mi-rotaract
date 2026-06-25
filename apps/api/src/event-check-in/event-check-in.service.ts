@@ -1,4 +1,4 @@
-import {
+﻿import {
   ForbiddenException,
   Injectable,
   Logger,
@@ -195,8 +195,8 @@ export class EventCheckInService {
   }
 
   async assertCanScan(eventId: string, actor: { id: string; role: string }) {
-    if (actor.role === Role.DISTRICT_SECRETARY) return;
-    if (actor.role === Role.PRESIDENT || actor.role === Role.DISTRICT_RDR) {
+    if (actor.role === Role.SECRETARY) return;
+    if (actor.role === Role.PRESIDENT || actor.role === Role.RDR) {
       const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { clubId: true } });
       if (event?.clubId) {
         const memberships = await this.prisma.membership.findMany({

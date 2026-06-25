@@ -16,9 +16,6 @@
     "noImplicitAny": true,
     "strictBindCallApply": true,
     "forceConsistentCasingInFileNames": true,
-    "noFallthroughCasesInSwitch": true,
-    "paths": {
-      "@mi-rotaract/shared-types": ["../../packages/shared-types/src"]
-    }
+    "noFallthroughCasesInSwitch": true
   }
 }

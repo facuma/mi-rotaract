@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+﻿import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ClubPresidencyStatus, NotificationType, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -397,7 +397,7 @@ export class ClubPresidencyService {
         },
       });
       const dsUsers = await this.prisma.user.findMany({
-        where: { role: Role.DISTRICT_SECRETARY, isActive: true },
+        where: { role: Role.SECRETARY, isActive: true },
         select: { id: true },
       });
       for (const club of clubsWithoutElect) {

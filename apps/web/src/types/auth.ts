@@ -1,5 +1,3 @@
-export const SHARED_TYPES_VERSION = '0.0.1';
-
 export type Role = 'PARTICIPANT' | 'SECRETARY' | 'PRESIDENT' | 'RDR' | 'COMPANY';
 
 export interface AuthMembership {

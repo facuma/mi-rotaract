@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   Body,
   Controller,
@@ -59,7 +59,7 @@ export class EventCheckInController {
 
   @Post('events/:id/check-in')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true }))
   async checkIn(
     @Param('id') eventId: string,
@@ -78,7 +78,7 @@ export class EventCheckInController {
 
   @Post('events/:id/registrations/:regId/undo-check-in')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   async undo(
     @Param('id') eventId: string,
     @Param('regId') regId: string,
@@ -92,7 +92,7 @@ export class EventCheckInController {
 
   @Get('events/:id/check-in/stats')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   stats(@Param('id') eventId: string) {
     return this.service.stats(eventId);
   }

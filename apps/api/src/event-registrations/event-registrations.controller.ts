@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   Body,
   Controller,
@@ -49,7 +49,7 @@ export class EventRegistrationsController {
 
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   list(@Param('id') eventId: string, @Query() query: QueryRegistrationsDto) {
     return this.service.list(eventId, query);
@@ -63,7 +63,7 @@ export class EventRegistrationsController {
 
   @Get('/export')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   async export(@Param('id') eventId: string, @Query('format') format: string, @Res({ passthrough: false }) res: Response) {
     const fmt = format === 'xlsx' ? 'xlsx' : 'csv';
     const { buffer, filename, contentType } = await this.service.export(eventId, fmt);
@@ -81,7 +81,7 @@ export class EventRegistrationsController {
   @Post('/bulk')
   @HttpCode(207)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UseInterceptors(FileInterceptor('file'))
   async bulk(@Param('id') eventId: string, @UploadedFile() file: any, @Query('mode') mode: string) {
     if (!file?.buffer) throw new BadRequestException('Archivo CSV requerido');

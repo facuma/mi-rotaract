@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ClubRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UpsertBoardDto } from './dto/upsert-board.dto';
@@ -77,7 +78,7 @@ export class ClubBoardService {
       }
       for (const [role, memberId] of desiredByRole) {
         await tx.clubBoardPosition.create({
-          data: { clubId, periodId, role, memberId },
+          data: { clubId, periodId, role: role as ClubRole, memberId },
         });
       }
     });

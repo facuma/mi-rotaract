@@ -8,7 +8,6 @@ apps/web
 apps/api/dist
 apps/api/uploads
 apps/api/.vercel
-packages/shared-types/dist
 *.log
 .next
 .vercel

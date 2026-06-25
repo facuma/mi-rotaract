@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+﻿import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { MealScanResult, RegistrationStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -211,8 +211,8 @@ export class EventMealsService {
   }
 
   async assertCanScan(eventId: string, actor: { id: string; role: string }) {
-    if (actor.role === Role.DISTRICT_SECRETARY) return;
-    if (actor.role === Role.PRESIDENT || actor.role === Role.DISTRICT_RDR) {
+    if (actor.role === Role.SECRETARY) return;
+    if (actor.role === Role.PRESIDENT || actor.role === Role.RDR) {
       const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { clubId: true } });
       if (event?.clubId) {
         const memberships = await this.prisma.membership.findMany({

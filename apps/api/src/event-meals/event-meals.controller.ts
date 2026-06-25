@@ -1,4 +1,4 @@
-import {
+﻿import {
   Body,
   Controller,
   Delete,
@@ -31,7 +31,7 @@ export class EventMealsController {
 
   @Post()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   create(@Param('id') eventId: string, @Body() dto: UpsertMealDto, @CurrentUser() actor: any) {
     return this.service.create(eventId, dto, actor.id);
@@ -39,7 +39,7 @@ export class EventMealsController {
 
   @Put(':mealId')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   update(
     @Param('id') eventId: string,
@@ -52,7 +52,7 @@ export class EventMealsController {
 
   @Delete(':mealId')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   remove(@Param('id') eventId: string, @Param('mealId') mealId: string, @CurrentUser() actor: any) {
     return this.service.remove(eventId, mealId, actor.id);
   }
@@ -71,14 +71,14 @@ export class EventMealsController {
 
   @Get(':mealId/stats')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   stats(@Param('id') eventId: string, @Param('mealId') mealId: string) {
     return this.service.stats(eventId, mealId);
   }
 
   @Get('/all/stats')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.DISTRICT_SECRETARY, Role.PRESIDENT, Role.DISTRICT_RDR)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
   statsAll(@Param('id') eventId: string) {
     return this.service.statsPerMeal(eventId);
   }

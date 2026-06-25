@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ApplicationStatus, ClubRole, MemberStatus, NotificationType, Role } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcrypt';
 import { BCRYPT_COST } from '../auth/bcrypt-config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -51,7 +51,7 @@ export class PlatformAdminService {
         this.prisma.clubPresidency.findMany({ where: { status: 'ACTIVE' }, select: { clubId: true } }),
         this.prisma.user.findMany({
           where: {
-            role: Role.USER,
+            role: Role.PARTICIPANT,
             isActive: true,
             memberships: { none: { OR: [{ activeUntil: null }, { activeUntil: { gt: now } }] } },
           },
@@ -61,7 +61,7 @@ export class PlatformAdminService {
         }),
         this.prisma.user.count({
           where: {
-            role: Role.USER,
+            role: Role.PARTICIPANT,
             isActive: true,
             memberships: { none: { OR: [{ activeUntil: null }, { activeUntil: { gt: now } }] } },
           },
