@@ -8,12 +8,60 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+/// Alcance de `Role`:
+///  - USER / DISTRICT_SECRETARY / DISTRICT_RDR / COMPANY: se persisten en User.role.
+///  - PRESIDENT: valor VIRTUAL — se calcula al login desde Membership.isPresident.
+///    Un CHECK constraint en User.role (ver migración 20260417100000) impide
+///    que se persista. Sólo vive en el claim del JWT.
 enum Role {
-  PARTICIPANT
-  SECRETARY
+  USER
+  DISTRICT_SECRETARY
   PRESIDENT
-  RDR
+  DISTRICT_RDR
   COMPANY
+  SUPERADMIN
+}
+
+enum ClubRole {
+  MEMBER
+  TREASURER
+  SECRETARY
+  VICE_PRESIDENT
+  PRESIDENT
+  PRESIDENT_ELECT
+  PAST_PRESIDENT
+  CUSTOM
+}
+
+enum ClubPresidencyStatus {
+  ELECTED
+  ACTIVE
+  ENDED
+  REVOKED
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum TransferStatus {
+  REQUESTED
+  ACCEPTED_BY_DESTINATION
+  CONFIRMED_BY_ORIGIN
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum CartaPoderStatus {
+  DRAFT
+  PENDING_SECRETARY
+  SUBMITTED
+  VERIFIED
+  REJECTED
 }
 
 enum ClubStatus {
@@ -71,6 +119,11 @@ enum MajorityType {
   THREE_QUARTERS
 }
 
+enum BallotType {
+  YES_NO
+  CANDIDATE
+}
+
 enum MeetingStatus {
   DRAFT
   SCHEDULED
@@ -105,6 +158,7 @@ model User {
   passwordHash          String
   role                  Role
   isActive              Boolean             @default(true)
+  mustChangePassword    Boolean             @default(false)
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
   memberships           Membership[]
@@ -115,6 +169,14 @@ model User {
   committeesCoordinated Committee[]         @relation("CommitteeCoordinator")
   committeeMemberships  CommitteeMember[]
   organizedEvents       Event[]             @relation("EventOrganizer")
+  grantedEventPermissions EventDistrictPermission[] @relation("EventPermissionGrantedBy")
+  revokedEventPermissions EventDistrictPermission[] @relation("EventPermissionRevokedBy")
+  eventRegistrations    EventRegistration[] @relation("EventRegistrationUser")
+  eventCheckIns         EventRegistration[] @relation("EventRegistrationCheckedInBy")
+  scannedCheckInLogs    EventCheckInLog[]   @relation("CheckInLogScanner")
+  receivedPayments      EventPayment[]      @relation("PaymentReceivedBy")
+  scannedMealConsumptions EventMealConsumption[] @relation("MealScannedBy")
+  notifications         Notification[]
   attachments           Attachment[]
   assignedProjects      Project[]           @relation("ProjectAssignee")
   profile               UserProfile?
@@ -123,6 +185,8 @@ model User {
   passwordResetTokens   PasswordResetToken[]
   company               Company?
   talentContactRequests TalentContactRequest[]
+  electedPresidencies   ClubPresidency[]     @relation("ClubPresidencyElectedBy")
+  membershipApplications MembershipApplication[]
 }
 
 model PasswordResetToken {
@@ -223,6 +287,7 @@ model Club {
   contactPhone             String?
   createdAt                DateTime   @default(now())
   updatedAt                DateTime   @updatedAt
+  presidencyExtended       Boolean    @default(false)
   memberships              Membership[]
   members                  Member[]
   meetings                 Meeting[]
@@ -232,6 +297,12 @@ model Club {
   auditLogs                AuditLog[]
   meetingAttendances       ClubMeetingAttendance[]
   cartasPoder              CartaPoder[]
+  eventPermissions         EventDistrictPermission[]
+  presidencies             ClubPresidency[]
+  boardPositions           ClubBoardPosition[]
+  membershipApplications   MembershipApplication[]
+  transfersFrom            MemberTransferRequest[] @relation("TransferFromClub")
+  transfersTo              MemberTransferRequest[] @relation("TransferToClub")
 }
 
 model Membership {
@@ -239,6 +310,7 @@ model Membership {
   userId     String
   clubId     String
   title      String?
+  clubRole   ClubRole @default(MEMBER)
   isPresident Boolean @default(false)
   activeFrom DateTime @default(now())
   activeUntil DateTime?
@@ -247,6 +319,7 @@ model Membership {
   @@unique([userId, clubId])
   @@index([userId])
   @@index([clubId])
+  @@index([clubId, clubRole])
 }
 
 model Member {
@@ -269,6 +342,9 @@ model Member {
 
   club          Club         @relation(fields: [clubId], references: [id], onDelete: Cascade)
   user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  presidencies  ClubPresidency[]
+  boardPositions ClubBoardPosition[]
+  transferRequests MemberTransferRequest[]
 
   @@unique([clubId, email])
   @@unique([clubId, userId])
@@ -341,26 +417,46 @@ enum VoteChoice {
 }
 
 model VoteSession {
-  id                  String            @id @default(cuid())
-  meetingId           String
-  topicId             String
-  status              VoteSessionStatus @default(OPEN)
-  votingMethod        VotingMethod      @default(PUBLIC)
-  requiredMajority    MajorityType      @default(SIMPLE)
-  isElection          Boolean           @default(false)
-  rdrTiebreakerUsed   Boolean           @default(false)
-  rdrTiebreakerChoice VoteChoice?
-  eligibleClubIds     String?           @db.Text
-  eligibleClubCount   Int?
-  openedAt            DateTime          @default(now())
-  closedAt            DateTime?
-  openedById          String?
-  closedById          String?
-  votes               Vote[]
-  sealedVotes         SealedVote[]
-  topic               AgendaTopic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  meeting             Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  id                       String            @id @default(cuid())
+  meetingId                String
+  topicId                  String
+  status                   VoteSessionStatus @default(OPEN)
+  votingMethod             VotingMethod      @default(PUBLIC)
+  requiredMajority         MajorityType      @default(SIMPLE)
+  isElection               Boolean           @default(false)
+  ballotType               BallotType        @default(YES_NO)
+  round                    Int               @default(1)
+  previousSessionId        String?
+  rdrTiebreakerUsed        Boolean           @default(false)
+  rdrTiebreakerChoice      VoteChoice?
+  rdrTiebreakerCandidateId String?
+  eligibleClubIds          String?           @db.Text
+  eligibleClubCount        Int?
+  openedAt                 DateTime          @default(now())
+  closedAt                 DateTime?
+  openedById               String?
+  closedById               String?
+  votes                    Vote[]
+  sealedVotes              SealedVote[]
+  candidates               VoteCandidate[]
+  previousSession          VoteSession?      @relation("VoteRound", fields: [previousSessionId], references: [id])
+  nextRounds               VoteSession[]     @relation("VoteRound")
+  topic                    AgendaTopic       @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  meeting                  Meeting           @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   @@index([meetingId, status])
+  @@index([previousSessionId])
+}
+
+model VoteCandidate {
+  id            String      @id @default(cuid())
+  voteSessionId String
+  displayName   String
+  userId        String?
+  order         Int         @default(0)
+  createdAt     DateTime    @default(now())
+  session       VoteSession @relation(fields: [voteSessionId], references: [id], onDelete: Cascade)
+  votes         Vote[]
+  @@index([voteSessionId])
 }
 
 model Vote {
@@ -369,11 +465,14 @@ model Vote {
   userId      String
   clubId      String?
   choice      VoteChoice
+  candidateId String?
   createdAt   DateTime  @default(now())
-  session     VoteSession @relation(fields: [voteSessionId], references: [id], onDelete: Cascade)
+  session     VoteSession    @relation(fields: [voteSessionId], references: [id], onDelete: Cascade)
+  candidate   VoteCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
   @@unique([voteSessionId, userId])
   @@index([voteSessionId])
   @@index([voteSessionId, clubId])
+  @@index([candidateId])
 }
 
 model MeetingParticipant {
@@ -473,19 +572,27 @@ model AuditLog {
 }
 
 model CartaPoder {
-  id              String   @id @default(cuid())
-  meetingId       String
-  clubId          String
-  presidentUserId String
-  delegateUserId  String
-  receivedAt      DateTime @default(now())
-  verified        Boolean  @default(false)
-  verifiedById    String?
-  documentUrl     String?
-  meeting         Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  club            Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  id                 String           @id @default(cuid())
+  meetingId          String
+  clubId             String
+  presidentUserId    String
+  delegateUserId     String
+  delegateDocNumber  String?
+  delegateDocType    String?          // 'DNI' | 'PASAPORTE' | 'CI'
+  status             CartaPoderStatus @default(DRAFT)
+  secretaryUserId    String?
+  secretarySignedAt  DateTime?
+  submittedAt        DateTime?
+  rejectionReason    String?
+  receivedAt         DateTime         @default(now())
+  verified           Boolean          @default(false)
+  verifiedById       String?
+  documentUrl        String?
+  meeting            Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  club               Club             @relation(fields: [clubId], references: [id], onDelete: Cascade)
   @@unique([meetingId, clubId])
   @@index([meetingId])
+  @@index([clubId, status])
 }
 
 model ClubMeetingAttendance {
@@ -543,7 +650,53 @@ model DistrictPeriod {
   updatedAt DateTime @updatedAt
   reports   Report[]
   committees Committee[]
+  presidencies ClubPresidency[]
+  boardPositions ClubBoardPosition[]
   @@index([startDate, endDate])
+}
+
+model ClubPresidency {
+  id          String               @id @default(cuid())
+  clubId      String
+  memberId    String
+  periodId    String
+  status      ClubPresidencyStatus @default(ELECTED)
+  startDate   DateTime?
+  endDate     DateTime?
+  electedById String?
+  electedAt   DateTime             @default(now())
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  club        Club                 @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  member      Member               @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  period      DistrictPeriod       @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  electedBy   User?                @relation("ClubPresidencyElectedBy", fields: [electedById], references: [id], onDelete: SetNull)
+
+  @@index([clubId, status])
+  @@index([clubId, periodId])
+  @@index([memberId])
+  @@index([periodId])
+}
+
+model ClubBoardPosition {
+  id        String    @id @default(cuid())
+  clubId    String
+  memberId  String
+  role      ClubRole
+  periodId  String
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  club      Club           @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  member    Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  period    DistrictPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+
+  @@unique([clubId, periodId, role])
+  @@index([clubId, periodId])
+  @@index([memberId])
 }
 
 model Report {
@@ -622,31 +775,315 @@ model CommitteeActivity {
 }
 
 model Event {
-  id          String         @id @default(cuid())
-  title       String
-  description String?
-  type        EventType
-  modality    EventModality
-  startsAt    DateTime
-  endsAt      DateTime?
-  location    String?
-  meetingUrl  String?
-  maxCapacity Int?
-  status      EventStatus    @default(DRAFT)
-  featured    Boolean        @default(false)
-  imageUrl    String?
-  clubId      String?
-  organizerId String
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id              String         @id @default(cuid())
+  title           String
+  description     String?
+  type            EventType
+  modality        EventModality
+  startsAt        DateTime
+  endsAt          DateTime?
+  location        String?
+  meetingUrl      String?
+  maxCapacity     Int?
+  status          EventStatus    @default(DRAFT)
+  featured        Boolean        @default(false)
+  imageUrl        String?
+  slug            String?        @unique
+  isPaid          Boolean        @default(false)
+  paymentOpensAt  DateTime?
+  paymentClosesAt DateTime?
+  remindersAt          DateTime[]     @default([])
+  sentReminders        DateTime[]     @default([])
+  changesClosesAt      DateTime?
+  cancellationClosesAt DateTime?
+  clubId          String?
+  organizerId     String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-  club        Club?          @relation(fields: [clubId], references: [id], onDelete: SetNull)
-  organizer   User           @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  club            Club?          @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  organizer       User           @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  registrations   EventRegistration[]
+  ticket          EventTicket?
+  installments    EventInstallment[]
+  meals           EventMeal[]
+  registrationForm EventRegistrationForm?
+  emailTemplates  EventEmailTemplate[]
+  emailLogs       EventEmailLog[]
+  checkInLogs     EventCheckInLog[]
 
   @@index([status, startsAt])
   @@index([clubId])
   @@index([organizerId])
   @@index([featured, status, startsAt])
+}
+
+enum EventPermissionScope {
+  DISTRITAL_EVENT_CREATE
+  FINANCIAL_MANAGE
+}
+
+enum EventPermissionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+model EventDistrictPermission {
+  id          String                 @id @default(cuid())
+  clubId      String
+  scope       EventPermissionScope
+  status      EventPermissionStatus  @default(ACTIVE)
+  grantedById String
+  grantedAt   DateTime               @default(now())
+  expiresAt   DateTime?
+  revokedById String?
+  revokedAt   DateTime?
+  notes       String?
+
+  club        Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  grantedBy   User @relation("EventPermissionGrantedBy", fields: [grantedById], references: [id])
+  revokedBy   User? @relation("EventPermissionRevokedBy", fields: [revokedById], references: [id])
+
+  @@index([clubId, status])
+  @@index([status, expiresAt])
+}
+
+enum RegistrationStatus {
+  CONFIRMED
+  WAITLISTED
+  PENDING_PAYMENT
+  CANCELLED
+  NO_SHOW
+}
+
+model EventRegistration {
+  id               String              @id @default(cuid())
+  eventId          String
+  userId           String?
+  email            String
+  fullName         String
+  phone            String?
+  status           RegistrationStatus  @default(CONFIRMED)
+  waitlistPosition Int?
+  checkInToken     String?             @unique
+  checkedInAt      DateTime?
+  checkedInById    String?
+  cancelledAt      DateTime?
+  additionalData   String?             @db.Text
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  event            Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user             User? @relation("EventRegistrationUser", fields: [userId], references: [id], onDelete: SetNull)
+  checkedInBy      User? @relation("EventRegistrationCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
+  payments         EventPayment[]
+  mealConsumptions EventMealConsumption[]
+  emailLogs        EventEmailLog[]
+  checkInLogs      EventCheckInLog[]
+
+  @@unique([eventId, email])
+  @@index([eventId, status])
+  @@index([userId])
+}
+
+enum CheckInResult {
+  CHECKED_IN
+  ALREADY_CHECKED_IN
+  INVALID_TOKEN
+  WRONG_EVENT
+  REGISTRATION_CANCELLED
+  PAYMENT_PENDING
+  EVENT_NOT_OPEN
+  FORBIDDEN
+}
+
+model EventCheckInLog {
+  id             String        @id @default(cuid())
+  eventId        String
+  registrationId String?
+  token          String
+  result         CheckInResult
+  scannedById    String
+  deviceInfo     String?
+  scannedAt      DateTime      @default(now())
+
+  event          Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registration   EventRegistration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  scannedBy      User               @relation("CheckInLogScanner", fields: [scannedById], references: [id])
+
+  @@index([eventId, scannedAt])
+  @@index([registrationId])
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  WAIVED
+}
+
+enum PaymentMethod {
+  TRANSFER
+  CASH
+  CARD
+  MERCADO_PAGO
+  OTHER
+}
+
+model EventTicket {
+  id        String   @id @default(cuid())
+  eventId   String   @unique
+  amount    Decimal  @db.Decimal(12, 2)
+  currency  String   @default("ARS")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model EventInstallment {
+  id       String   @id @default(cuid())
+  eventId  String
+  order    Int
+  label    String
+  amount   Decimal  @db.Decimal(12, 2)
+  dueDate  DateTime
+  payments EventPayment[]
+
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, order])
+  @@index([eventId])
+}
+
+model EventPayment {
+  id              String             @id @default(cuid())
+  registrationId  String
+  installmentId   String
+  amount          Decimal            @db.Decimal(12, 2)
+  status          PaymentStatus      @default(PENDING)
+  method          PaymentMethod?
+  paidAt          DateTime?
+  receivedById    String?
+  receiptNote     String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  registration    EventRegistration  @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  installment     EventInstallment   @relation(fields: [installmentId], references: [id])
+  receivedBy      User?              @relation("PaymentReceivedBy", fields: [receivedById], references: [id])
+
+  @@unique([registrationId, installmentId])
+  @@index([registrationId, status])
+}
+
+model EventMeal {
+  id          String   @id @default(cuid())
+  eventId     String
+  name        String
+  servedAt    DateTime
+  windowStart DateTime
+  windowEnd   DateTime
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  event        Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  consumptions EventMealConsumption[]
+
+  @@index([eventId, order])
+}
+
+enum MealScanResult {
+  CONSUMED
+  ALREADY_CONSUMED
+  OUTSIDE_WINDOW
+  REGISTRATION_NOT_CONFIRMED
+  WRONG_EVENT
+  INVALID_TOKEN
+  MEAL_NOT_FOUND
+}
+
+model EventRegistrationForm {
+  id        String   @id @default(cuid())
+  eventId   String   @unique
+  schema    Json
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model EventMealConsumption {
+  id             String            @id @default(cuid())
+  mealId         String
+  registrationId String
+  consumedAt     DateTime          @default(now())
+  scannedById    String
+  deviceInfo     String?
+
+  meal           EventMeal         @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  registration   EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  scannedBy      User              @relation("MealScannedBy", fields: [scannedById], references: [id])
+
+  @@unique([mealId, registrationId])
+  @@index([mealId, consumedAt])
+}
+
+enum EmailTemplateType {
+  REGISTRATION_CONFIRMATION
+  REMINDER
+  EVENT_CANCELLED
+  PAYMENT_WINDOW_OPEN
+  PAYMENT_WINDOW_CLOSING
+  WAITLIST_PROMOTED
+  PAYMENT_RECORDED
+  INSTALLMENT_DUE_REMINDER
+  PAYMENT_COMPLETE
+}
+
+enum EmailStatus {
+  QUEUED
+  SENT
+  FAILED
+  BOUNCED
+}
+
+model EventEmailTemplate {
+  id        String            @id @default(cuid())
+  eventId   String
+  type      EmailTemplateType
+  subject   String
+  bodyHtml  String            @db.Text
+  bodyText  String?           @db.Text
+  updatedAt DateTime          @updatedAt
+  createdAt DateTime          @default(now())
+
+  event     Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, type])
+}
+
+model EventEmailLog {
+  id                String            @id @default(cuid())
+  eventId           String
+  registrationId    String?
+  toEmail           String
+  templateType      EmailTemplateType
+  status            EmailStatus       @default(QUEUED)
+  providerMessageId String?
+  sentAt            DateTime?
+  error             String?
+  createdAt         DateTime          @default(now())
+
+  event             Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registration      EventRegistration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, templateType])
+  @@index([status])
+  @@index([registrationId])
 }
 
 enum ProjectStatus {
@@ -759,4 +1196,115 @@ model TalentContactRequest {
   @@index([companyId])
   @@index([talentUserId])
   @@index([status, createdAt])
+}
+
+enum NotificationType {
+  REGISTRATION_CREATED
+  REGISTRATION_CANCELLED
+  PAYMENT_RECORDED
+  CHECKIN_PERFORMED
+  EVENT_CANCELLED
+  EVENT_REMINDER
+  PERMISSION_GRANTED
+  PERMISSION_REVOKED
+  INSTALLMENT_DUE
+  WAITLIST_PROMOTED
+
+  // Carta Poder (Art. 46)
+  CARTA_PODER_PENDING_SECRETARY
+  CARTA_PODER_SUBMITTED
+  CARTA_PODER_VERIFIED
+  CARTA_PODER_REJECTED
+
+  // Sucesión de presidencia
+  PRESIDENCY_DESIGNATED
+  PRESIDENCY_REMINDER
+  PRESIDENCY_NO_SUCCESSOR
+  PRESIDENCY_TRANSITION
+  PRESIDENCY_REVOKED
+
+  // Fase 4 — solicitudes de ingreso y transferencias
+  MEMBERSHIP_APPLICATION_RECEIVED
+  MEMBERSHIP_APPLICATION_APPROVED
+  MEMBERSHIP_APPLICATION_REJECTED
+  TRANSFER_REQUESTED
+  TRANSFER_ACCEPTED
+  TRANSFER_COMPLETED
+  TRANSFER_REJECTED
+
+  // Desempate RDR (Art. 49) + elecciones multi-candidato (Art. 61-66)
+  VOTE_TIE_DETECTED
+  VOTE_TIEBREAKER_APPLIED
+
+  // Panel SuperAdmin
+  ADMIN_ASSIGNED_TO_CLUB
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String?
+  /** Payload opcional con keys como eventId, registrationId, amount… (JSON string). */
+  data      String?          @db.Text
+  eventId   String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+model MembershipApplication {
+  id           String            @id @default(cuid())
+  clubId       String
+  userId       String
+  firstName    String
+  lastName     String
+  email        String
+  phone        String?
+  message      String?           @db.Text
+  status       ApplicationStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  memberId     String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  club         Club              @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([clubId, status])
+  @@index([clubId, createdAt])
+  @@index([userId, status])
+}
+
+model MemberTransferRequest {
+  id           String         @id @default(cuid())
+  memberId     String
+  fromClubId   String
+  toClubId     String
+  status       TransferStatus @default(REQUESTED)
+  reason       String?        @db.Text
+  requestedAt  DateTime       @default(now())
+  acceptedById String?
+  acceptedAt   DateTime?
+  confirmedById String?
+  confirmedAt  DateTime?
+  completedAt  DateTime?
+  rejectedById String?
+  rejectedAt   DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  member       Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  fromClub     Club           @relation("TransferFromClub", fields: [fromClubId], references: [id], onDelete: Cascade)
+  toClub       Club           @relation("TransferToClub", fields: [toClubId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@index([fromClubId, status])
+  @@index([toClubId, status])
 }
