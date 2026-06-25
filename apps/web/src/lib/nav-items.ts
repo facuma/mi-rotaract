@@ -113,13 +113,10 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export function getNavItemsForRole(role: string): NavItem[] {
+  if (role === 'SUPERADMIN') return NAV_ITEMS;
   return NAV_ITEMS.map((item) => {
-    // Verificar rol del ítem padre
     if (item.roles && !item.roles.includes(role)) return null;
-
-    if (!item.children) {
-      return item;
-    }
+    if (!item.children) return item;
     const filteredChildren = item.children.filter((child) => {
       if (!child.roles) return true;
       return child.roles.includes(role);

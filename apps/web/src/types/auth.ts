@@ -1,4 +1,4 @@
-export type Role = 'PARTICIPANT' | 'SECRETARY' | 'PRESIDENT' | 'RDR' | 'COMPANY';
+export type Role = 'PARTICIPANT' | 'SECRETARY' | 'PRESIDENT' | 'RDR' | 'COMPANY' | 'SUPERADMIN';
 
 export interface AuthMembership {
   clubId: string;

@@ -34,6 +34,24 @@ export class AuthService {
     return ok ? user : null;
   }
 
+  private async queryMemberships(userId: string) {
+    const now = new Date();
+    return this.prisma.membership.findMany({
+      where: { userId, OR: [{ activeUntil: null }, { activeUntil: { gt: now } }] },
+      select: {
+        clubId: true,
+        title: true,
+        isPresident: true,
+        club: { select: { id: true, name: true, code: true } },
+      },
+    });
+  }
+
+  private computeEffectiveRole(role: Role, memberships: { isPresident: boolean }[]): string {
+    if (role === Role.PARTICIPANT && memberships.some((m) => m.isPresident)) return 'PRESIDENT';
+    return role as string;
+  }
+
   async login(email: string, password: string) {
     try {
       const user = await this.validateUser(email, password);
@@ -51,7 +69,9 @@ export class AuthService {
         actorUserId: user.id,
         entityId: user.id,
       });
-      const payload = { sub: user.id, email: user.email, role: user.role };
+      const memberships = await this.queryMemberships(user.id);
+      const effectiveRole = this.computeEffectiveRole(user.role, memberships);
+      const payload = { sub: user.id, email: user.email, role: effectiveRole };
       const access_token = this.jwtService.sign(payload);
       return {
         access_token,
@@ -59,7 +79,14 @@ export class AuthService {
           id: user.id,
           fullName: user.fullName,
           email: user.email,
-          role: user.role,
+          role: effectiveRole,
+          memberships: memberships.map((m) => ({
+            clubId: m.clubId,
+            clubName: m.club.name,
+            clubCode: m.club.code,
+            title: m.title,
+            isPresident: m.isPresident,
+          })),
         },
       };
     } catch (error) {
@@ -133,12 +160,13 @@ export class AuthService {
       },
     });
     if (!user) throw new UnauthorizedException();
+    const effectiveRole = this.computeEffectiveRole(user.role, user.memberships);
     return {
       user: {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
-        role: user.role,
+        role: effectiveRole,
         memberships: user.memberships.map((m) => ({
           clubId: m.clubId,
           clubName: m.club.name,
