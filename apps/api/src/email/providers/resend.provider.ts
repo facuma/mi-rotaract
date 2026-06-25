@@ -33,7 +33,7 @@ export class ResendProvider implements IEmailProvider {
       subject: message.subject,
       html: message.html ?? '',
       text: message.text,
-      reply_to: message.replyTo,
+      replyTo: message.replyTo,
       attachments: message.attachments?.map((a) => ({
         filename: a.filename,
         content: typeof a.content === 'string' ? a.content : a.content.toString('base64'),
