@@ -14,7 +14,7 @@ import { BulkImportResult } from '../common/bulk/bulk-result.types';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { QueryMembersDto } from './dto/query-members.dto';
-import { MemberStatus } from '@prisma/client';
+import { MemberStatus, ClubRole } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
 function normalizeEmail(email: string): string {
@@ -545,12 +545,15 @@ export class ClubMembersService {
         where: {
           userId_clubId: { userId: user.id, clubId },
         },
-        update: {},
+        update: {
+          clubRole: memberIsPresident ? ClubRole.PRESIDENT : ClubRole.MEMBER,
+        },
         create: {
           userId: user.id,
           clubId,
           title: memberTitle,
           isPresident: memberIsPresident,
+          clubRole: memberIsPresident ? ClubRole.PRESIDENT : ClubRole.MEMBER,
         },
       });
     });
@@ -592,12 +595,15 @@ export class ClubMembersService {
           where: {
             userId_clubId: { userId, clubId: m.clubId },
           },
-          update: {},
+          update: {
+            clubRole: m.isPresident ? ClubRole.PRESIDENT : ClubRole.MEMBER,
+          },
           create: {
             userId,
             clubId: m.clubId,
             title: m.title,
             isPresident: m.isPresident,
+            clubRole: m.isPresident ? ClubRole.PRESIDENT : ClubRole.MEMBER,
           },
         });
       });
@@ -659,12 +665,14 @@ export class ClubMembersService {
             update: {
               isPresident: true,
               title: member.title || 'Presidente',
+              clubRole: ClubRole.PRESIDENT,
             },
             create: {
               userId,
               clubId: club.id,
               title: member.title || 'Presidente',
               isPresident: true,
+              clubRole: ClubRole.PRESIDENT,
             },
           });
         });

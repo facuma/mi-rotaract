@@ -159,6 +159,18 @@ export class PlatformAdminService {
     if (existingMember) throw new ConflictException('Ya existe un socio con ese email en el club');
     const { firstName, lastName } = splitFullName(user.fullName);
     const { member, membership } = await this.prisma.$transaction(async (tx) => {
+      const isPres = dto.clubRole === ClubRole.PRESIDENT;
+      if (isPres) {
+        await tx.member.updateMany({
+          where: { clubId: dto.clubId, isPresident: true },
+          data: { isPresident: false },
+        });
+        await tx.membership.updateMany({
+          where: { clubId: dto.clubId, isPresident: true },
+          data: { isPresident: false, clubRole: ClubRole.MEMBER },
+        });
+      }
+
       const m = await tx.member.create({
         data: {
           clubId: dto.clubId,
@@ -167,12 +179,19 @@ export class PlatformAdminService {
           lastName,
           email: user.email,
           status: MemberStatus.ACTIVE,
-          title: dto.title ?? null,
+          title: dto.title ?? (isPres ? 'Presidente' : null),
+          isPresident: isPres,
           joinedAt: new Date(),
         },
       });
       const ms = await tx.membership.create({
-        data: { userId: targetUserId, clubId: dto.clubId, clubRole: dto.clubRole ?? ClubRole.MEMBER, isPresident: false, title: dto.title ?? null },
+        data: {
+          userId: targetUserId,
+          clubId: dto.clubId,
+          clubRole: dto.clubRole ?? ClubRole.MEMBER,
+          isPresident: isPres,
+          title: dto.title ?? (isPres ? 'Presidente' : null),
+        },
       });
       return { member: m, membership: ms };
     });
