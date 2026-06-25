@@ -78,6 +78,13 @@ const ASSIGNABLE_ROLES: { value: RoleValue; label: string }[] = [
   { value: 'SUPERADMIN', label: 'Superadmin' },
 ];
 
+const mapDbRoleToFrontend = (role: string): string => {
+  if (role === 'USER') return 'PARTICIPANT';
+  if (role === 'DISTRICT_SECRETARY') return 'SECRETARY';
+  if (role === 'DISTRICT_RDR') return 'RDR';
+  return role;
+};
+
 // ─── EditUserDialog ───────────────────────────────────────────────────────────
 
 function EditUserDialog({
@@ -93,14 +100,14 @@ function EditUserDialog({
 }) {
   const [fullName, setFullName] = useState(user.fullName);
   const [email, setEmail] = useState(user.email);
-  const [role, setRole] = useState<RoleValue>(user.role as RoleValue);
+  const [role, setRole] = useState<RoleValue>(mapDbRoleToFrontend(user.role) as RoleValue);
   const [isActive, setIsActive] = useState(user.isActive);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setFullName(user.fullName);
     setEmail(user.email);
-    setRole(user.role as RoleValue);
+    setRole(mapDbRoleToFrontend(user.role) as RoleValue);
     setIsActive(user.isActive);
   }, [user]);
 
@@ -380,10 +387,11 @@ function ResetPasswordDialog({
 // ─── página principal ─────────────────────────────────────────────────────────
 
 const getEffectiveRole = (u: AdminUser): string => {
-  if (u.role === 'PARTICIPANT' && u.memberships?.some((m) => m.isPresident)) {
+  const mappedRole = mapDbRoleToFrontend(u.role);
+  if (mappedRole === 'PARTICIPANT' && u.memberships?.some((m) => m.isPresident)) {
     return 'PRESIDENT';
   }
-  return u.role;
+  return mappedRole;
 };
 
 export default function AdminUsuariosPage() {
@@ -547,13 +555,13 @@ export default function AdminUsuariosPage() {
                     </TableCell>
 
                     <TableCell className="hidden md:table-cell">
-                      {u.memberships.length === 0 ? (
+                      {!u.memberships || u.memberships.length === 0 ? (
                         <span className="text-xs text-muted-foreground">—</span>
                       ) : (
                         <div className="flex flex-wrap gap-1">
                           {u.memberships.map((m) => (
                             <Badge key={m.clubId} variant="outline" className="text-xs">
-                              {m.club.code}
+                              {m.club?.code || '—'}
                               {m.isPresident && ' ★'}
                             </Badge>
                           ))}
