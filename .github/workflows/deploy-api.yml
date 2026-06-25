@@ -74,8 +74,8 @@ jobs:
             # Remove old container if it exists (may have been created by a different compose project)
             docker rm -f mi-rotaract-api 2>/dev/null || true
 
-            # Recreate API container (DB and Redis are left untouched)
-            docker compose -f docker-compose.prod.yml up -d --no-build --no-deps api
+            # Recreate API container using same project name as DB/Redis (mi-rotaract-app_default network)
+            docker compose -p mi-rotaract-app -f docker-compose.prod.yml up -d --no-build --no-deps api
 
             # Wait for container to be ready, then run migrations
             echo "Waiting for API to start..."
