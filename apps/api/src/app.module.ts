@@ -28,6 +28,23 @@ import { TimersModule } from './timers/timers.module';
 import { TopicsModule } from './topics/topics.module';
 import { VotingModule } from './voting/voting.module';
 import { CartaPoderModule } from './carta-poder/carta-poder.module';
+import { EventsBusModule } from './events-bus/events-bus.module';
+import { QueueModule } from './queue/queue.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { EventPermissionsModule } from './event-permissions/event-permissions.module';
+import { EventEmailsModule } from './event-emails/event-emails.module';
+import { EventCheckInModule } from './event-check-in/event-check-in.module';
+import { EventRegistrationsModule } from './event-registrations/event-registrations.module';
+import { EventPaymentsModule } from './event-payments/event-payments.module';
+import { EventMealsModule } from './event-meals/event-meals.module';
+import { EventRegistrationFormsModule } from './event-registration-forms/event-registration-forms.module';
+import { EventPublicModule } from './event-public/event-public.module';
+import { ClubPresidencyModule } from './club-presidency/club-presidency.module';
+import { MeModule } from './me/me.module';
+import { ClubBoardModule } from './club-board/club-board.module';
+import { MembershipApplicationsModule } from './membership-applications/membership-applications.module';
+import { TransferRequestsModule } from './transfer-requests/transfer-requests.module';
+import { PlatformAdminModule } from './platform-admin/platform-admin.module';
 
 @Module({
   imports: [
@@ -40,7 +57,24 @@ import { CartaPoderModule } from './carta-poder/carta-poder.module';
     PrismaModule,
     AuthModule,
     AuditModule,
+    EventsBusModule,
+    QueueModule,
+    NotificationsModule,
     ClubsModule, ClubModule, ClubReportsModule, DashboardModule, AttachmentsModule, ClubProjectsModule, ClubMembersModule, DistrictModule, EventsModule, HistoryModule, MeetingsModule, OpportunitiesModule, ProfileModule, RealtimeModule, SpeakingQueueModule, TalentModule, TimersModule, TopicsModule, VotingModule, CompaniesModule, CartaPoderModule,
+    EventPermissionsModule,
+    EventEmailsModule,
+    EventCheckInModule,
+    EventRegistrationsModule,
+    EventPaymentsModule,
+    EventMealsModule,
+    EventRegistrationFormsModule,
+    EventPublicModule,
+    ClubPresidencyModule,
+    MeModule,
+    ClubBoardModule,
+    MembershipApplicationsModule,
+    TransferRequestsModule,
+    PlatformAdminModule,
   ],
   controllers: [AppController],
 })
