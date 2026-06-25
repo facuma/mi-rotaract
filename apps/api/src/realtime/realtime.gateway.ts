@@ -306,7 +306,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       userId && openVoteSession
         ? this.prisma.vote.findUnique({
             where: { voteSessionId_userId: { voteSessionId: openVoteSession.id, userId } },
-          }).then((v) => v ? { voteSessionId: v.voteSessionId, choice: v.choice } : null)
+          }).then((v) => v ? { voteSessionId: v.voteSessionId, choice: v.choice, candidateId: v.candidateId } : null)
         : Promise.resolve(null),
       // Vote result (only fetch if no open session)
       !openVoteSession
@@ -418,6 +418,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
             eligibleClubCount: openVoteSession.eligibleClubCount,
             ballotType: openVoteSession.ballotType,
             isElection: openVoteSession.isElection,
+            electionType: openVoteSession.electionType,
             round: openVoteSession.round,
             candidates: openVoteSession.candidates.map((c) => ({
               id: c.id,

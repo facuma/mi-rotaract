@@ -9,9 +9,15 @@ import {
   UseGuards,
   UsePipes,
   ValidationPipe,
+  UploadedFile,
+  UseInterceptors,
+  Query,
+  HttpCode,
+  Res,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Role } from '@prisma/client';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -91,5 +97,32 @@ export class TopicsController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.topicsService.setCurrentTopic(meetingId, topicId || null, user.id);
+  }
+
+  @Get('bulk/template')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY)
+  async getBulkTemplate(
+    @Param('meetingId') meetingId: string,
+    @Res({ passthrough: false }) res: import('express').Response,
+  ) {
+    const { buffer, filename } = await this.topicsService.getBulkTemplate(meetingId);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
+  @Post('bulk')
+  @HttpCode(207)
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY)
+  @UseInterceptors(FileInterceptor('file'))
+  async bulkImport(
+    @Param('meetingId') meetingId: string,
+    @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file: Express.Multer.File,
+    @Query('mode') mode?: 'partial' | 'strict',
+  ) {
+    return this.topicsService.bulkImport(meetingId, file, user.id, mode);
   }
 }

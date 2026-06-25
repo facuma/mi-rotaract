@@ -2,6 +2,9 @@ import type { Role } from '@/types/auth';
 
 export const ADMIN_ROLES: Role[] = ['SECRETARY', 'PRESIDENT', 'RDR', 'SUPERADMIN'];
 
+/** Roles con permisos para administrar el distrito */
+export const DISTRICT_ROLES: Role[] = ['SECRETARY', 'RDR', 'SUPERADMIN'];
+
 /** Todos los rotaractianos (excluye COMPANY) */
 export const ROTARACT_ROLES: Role[] = ['PRESIDENT', 'RDR', 'PARTICIPANT', 'SECRETARY', 'SUPERADMIN'];
 

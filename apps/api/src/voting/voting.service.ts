@@ -64,6 +64,7 @@ export class VotingService {
       votingMethod?: VotingMethod;
       requiredMajority?: MajorityType;
       isElection?: boolean;
+      electionType?: string;
       ballotType?: BallotType;
       candidates?: { displayName: string; userId?: string }[];
     },
@@ -106,6 +107,7 @@ export class VotingService {
         votingMethod: options?.votingMethod ?? VotingMethod.PUBLIC,
         requiredMajority: options?.requiredMajority ?? MajorityType.SIMPLE,
         isElection: options?.isElection ?? (ballotType === BallotType.CANDIDATE),
+        electionType: options?.electionType ?? null,
         ballotType,
         eligibleClubIds: connectedClubIds.length > 0 ? JSON.stringify(connectedClubIds) : null,
         eligibleClubCount: connectedClubIds.length > 0 ? connectedClubIds.length : null,
@@ -140,6 +142,7 @@ export class VotingService {
         votingMethod: session.votingMethod,
         requiredMajority: session.requiredMajority,
         isElection: session.isElection,
+        electionType: session.electionType,
         ballotType: session.ballotType,
         candidateCount: candidates.length,
       },
@@ -152,6 +155,7 @@ export class VotingService {
       votingMethod: session.votingMethod,
       requiredMajority: session.requiredMajority,
       ballotType: session.ballotType,
+      electionType: session.electionType,
       round: session.round,
       candidates,
     });

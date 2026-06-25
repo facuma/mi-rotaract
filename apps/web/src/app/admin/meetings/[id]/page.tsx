@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { meetingsApi, cartaPoderApi } from '@/lib/api';
+import { meetingsApi, cartaPoderApi, topicsApi } from '@/lib/api';
 import { queryKeys, useMeetingDetailQuery, useMeetingTopicsQuery } from '@/lib/queries';
 import { MEETING_STATUS_LABELS } from '@/lib/meeting-constants';
 import { MeetingStatusStepper } from '@/components/meetings/MeetingStatusStepper';
@@ -101,6 +101,7 @@ export default function MeetingDetailPage() {
   const [actioning, setActioning] = useState(false);
   const [confirmFinish, setConfirmFinish] = useState(false);
   const [bulkParticipantsOpen, setBulkParticipantsOpen] = useState(false);
+  const [bulkTopicsOpen, setBulkTopicsOpen] = useState(false);
   const [error, setError] = useState('');
 
   // Delegaciones state
@@ -119,6 +120,7 @@ export default function MeetingDetailPage() {
 
   async function refreshMeeting() {
     queryClient.invalidateQueries({ queryKey: queryKeys.meetingDetail(id) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.meetingTopics(id) });
   }
 
   const loadCartasPoder = useCallback(async () => {
@@ -389,10 +391,15 @@ export default function MeetingDetailPage() {
             <CardTitle>Temas de agenda</CardTitle>
             <CardDescription>Ordená los temas y marcá el actual.</CardDescription>
           </div>
-          <TopicCreateDialog
-            meetingId={id}
-            onCreated={(t) => handleTopicsChange([...displayTopics, t].sort((a, b) => a.order - b.order))}
-          />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setBulkTopicsOpen(true)}>
+              Importar Agenda
+            </Button>
+            <TopicCreateDialog
+              meetingId={id}
+              onCreated={(t) => handleTopicsChange([...displayTopics, t].sort((a, b) => a.order - b.order))}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <TopicListSortable
@@ -461,6 +468,16 @@ export default function MeetingDetailPage() {
             description="Subí un archivo CSV con emails de usuarios existentes. Usá UTF-8."
             onDownloadTemplate={() => meetingsApi.downloadParticipantsBulkTemplate(id)}
             onImport={(file, mode) => meetingsApi.bulkImportParticipants(id, file, mode)}
+            onSuccess={refreshMeeting}
+          />
+
+          <BulkImportModal
+            isOpen={bulkTopicsOpen}
+            onClose={() => setBulkTopicsOpen(false)}
+            title="Importar temas de la agenda"
+            description="Subí un archivo CSV o Excel (.xlsx) con los temas de la reunión."
+            onDownloadTemplate={() => topicsApi.downloadBulkTemplate(id)}
+            onImport={(file, mode) => topicsApi.bulkImport(id, file, mode)}
             onSuccess={refreshMeeting}
           />
         </CardContent>

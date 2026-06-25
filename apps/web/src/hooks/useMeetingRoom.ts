@@ -45,6 +45,7 @@ export type MeetingSnapshot = {
     votingMethod?: string;
     requiredMajority?: string;
     ballotType?: 'YES_NO' | 'CANDIDATE';
+    electionType?: string | null;
     isElection?: boolean;
     round?: number;
     candidates?: VoteCandidate[];
@@ -67,6 +68,11 @@ export type MeetingSnapshot = {
     isInformationalOnly: boolean;
   } | null;
   clubAttendance?: { clubId: string; clubName: string; connected: boolean }[];
+  ownVote?: {
+    voteSessionId: string;
+    choice: 'YES' | 'NO' | 'ABSTAIN';
+    candidateId?: string | null;
+  } | null;
 };
 
 export type VoteResult = {
@@ -79,6 +85,7 @@ export type VoteResult = {
   isTied?: boolean;
   requiredMajority?: string;
   ballotType?: 'YES_NO' | 'CANDIDATE';
+  electionType?: string | null;
   round?: number;
   candidateResult?: CandidateVoteResult | null;
   rdrTiebreakerUsed?: boolean;
@@ -92,6 +99,7 @@ type RawVoteEvent = {
   isTied?: boolean;
   requiredMajority?: string;
   ballotType?: 'YES_NO' | 'CANDIDATE';
+  electionType?: string | null;
   round?: number;
   candidateResult?: CandidateVoteResult | null;
   rdrTiebreakerUsed?: boolean;
@@ -113,6 +121,7 @@ function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
     votingMethod?: string;
     requiredMajority?: string;
     ballotType?: 'YES_NO' | 'CANDIDATE';
+    electionType?: string | null;
     isElection?: boolean;
     round?: number;
     candidates?: VoteCandidate[];
@@ -121,6 +130,7 @@ function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
   const quorum = data.quorum as MeetingSnapshot['quorum'] ?? null;
   const timers = (data.timers as Array<{ id: string; type: string; plannedDurationSec: number; elapsedSec?: number }>) ?? [];
   const firstTimer = timers[0];
+  const ownVote = data.ownVote as MeetingSnapshot['ownVote'] ?? null;
   return {
     meetingId: meeting?.id ?? '',
     status: meeting?.status ?? '',
@@ -139,6 +149,7 @@ function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
           votingMethod: activeVote.votingMethod,
           requiredMajority: activeVote.requiredMajority,
           ballotType: activeVote.ballotType,
+          electionType: activeVote.electionType,
           isElection: activeVote.isElection,
           round: activeVote.round,
           candidates: activeVote.candidates ?? [],
@@ -165,6 +176,7 @@ function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
         }
       : null,
     clubAttendance: (data.clubAttendance as MeetingSnapshot['clubAttendance']) ?? [],
+    ownVote,
   };
 }
 
@@ -228,6 +240,7 @@ export function useMeetingRoom(meetingId: string | null) {
           isTied: data.isTied,
           requiredMajority: data.requiredMajority,
           ballotType: data.ballotType,
+          electionType: data.electionType,
           round: data.round,
           candidateResult: data.candidateResult,
           rdrTiebreakerUsed: data.rdrTiebreakerUsed,
@@ -246,6 +259,7 @@ export function useMeetingRoom(meetingId: string | null) {
           isTied: data.isTied,
           requiredMajority: data.requiredMajority,
           ballotType: data.ballotType,
+          electionType: data.electionType,
           round: data.round,
           candidateResult: data.candidateResult,
           rdrTiebreakerUsed: data.rdrTiebreakerUsed,

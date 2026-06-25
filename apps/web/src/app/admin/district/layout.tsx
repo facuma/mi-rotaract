@@ -3,6 +3,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useAuthState } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { DISTRICT_ROLES } from '@/lib/permissions';
 
 const LINKS = [
   { href: '/admin/district/informes', label: 'Informes' },
@@ -16,6 +20,19 @@ export default function DistrictLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { user, isLoading } = useAuthState();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!user || !DISTRICT_ROLES.includes(user.role)) {
+      router.replace('/dashboard');
+    }
+  }, [user, isLoading, router]);
+
+  if (isLoading || !user || !DISTRICT_ROLES.includes(user.role)) {
+    return null;
+  }
 
   return (
     <div className="space-y-4">

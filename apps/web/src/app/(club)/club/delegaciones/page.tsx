@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { meetingsApi, cartaPoderApi, usersApi } from '@/lib/api';
+import { meetingsApi, cartaPoderApi, clubApi } from '@/lib/api';
 import {
   Card,
   CardContent,
@@ -109,10 +109,18 @@ export default function DelegacionesPage() {
     if (allUsers.length === 0) {
       setUsersLoading(true);
       try {
-        const users = await usersApi.list();
-        setAllUsers(users);
+        const res = await clubApi.members.list({ limit: 200, status: 'ACTIVE' });
+        const mappedUsers = res.items
+          .filter((m) => m.user)
+          .map((m) => ({
+            id: m.user!.id,
+            fullName: m.user!.fullName,
+            email: m.user!.email,
+            role: 'PARTICIPANT',
+          }));
+        setAllUsers(mappedUsers);
       } catch {
-        toast.error('No se pudo cargar la lista de socios');
+        toast.error('No se pudo cargar la lista de socios del club');
       } finally {
         setUsersLoading(false);
       }

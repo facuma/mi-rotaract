@@ -25,6 +25,7 @@ export class VotingController {
       votingMethod?: VotingMethod;
       requiredMajority?: MajorityType;
       isElection?: boolean;
+      electionType?: string;
       ballotType?: BallotType;
       candidates?: { displayName: string; userId?: string }[];
     },
@@ -34,6 +35,7 @@ export class VotingController {
       votingMethod: body.votingMethod,
       requiredMajority: body.requiredMajority,
       isElection: body.isElection,
+      electionType: body.electionType,
       ballotType: body.ballotType,
       candidates: body.candidates,
     });

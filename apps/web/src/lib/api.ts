@@ -149,6 +149,7 @@ export const votingApi = {
       requiredMajority?: string;
       isElection?: boolean;
       ballotType?: 'YES_NO' | 'CANDIDATE';
+      electionType?: string;
       candidates?: { displayName: string; userId?: string }[];
     },
   ) =>
@@ -195,7 +196,13 @@ export const topicsApi = {
     api<unknown[]>(`/meetings/${meetingId}/topics/reorder`, { method: 'POST', body: JSON.stringify({ topicIds }) }),
   setCurrent: (meetingId: string, topicId: string | null) =>
     api<unknown>(`/meetings/${meetingId}/topics/current`, { method: 'POST', body: JSON.stringify({ topicId }) }),
+  downloadBulkTemplate: (meetingId: string) =>
+    downloadTemplate(`/meetings/${meetingId}/topics/bulk/template`, 'plantilla-agenda-reunion.csv'),
+  bulkImport: (meetingId: string, file: File, mode?: 'partial' | 'strict') =>
+    bulkImportApi(`/meetings/${meetingId}/topics/bulk`, file, mode),
 };
+
+
 
 export type Club = {
   id: string;

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { AvatarImage } from '@/components/AvatarImage';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -82,6 +83,7 @@ export function AppShell({
             </div>
             {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
             <div className="flex shrink-0 items-center gap-2">
+              <ThemeToggle />
               <AvatarImage
                 userId={user.id}
                 alt={user.fullName}

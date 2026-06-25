@@ -112,7 +112,13 @@ export default function ProjectorPage() {
           <div className="w-full max-w-3xl space-y-6 text-center">
             <div className="rounded-2xl border-2 border-primary/50 bg-primary/5 p-8 space-y-4 animate-pulse">
               <p className="text-sm uppercase tracking-widest text-muted-foreground">
-                {snapshot.activeVoteSession!.ballotType === 'CANDIDATE' ? 'Elección abierta' : 'Votación abierta'}
+                {snapshot.activeVoteSession!.electionType === 'RDR'
+                  ? 'Elección del Representante Distrital (RDR)'
+                  : snapshot.activeVoteSession!.electionType === 'EVENT'
+                  ? 'Elección de Sede de Evento Distrital'
+                  : snapshot.activeVoteSession!.ballotType === 'CANDIDATE'
+                  ? 'Elección abierta'
+                  : 'Votación abierta'}
                 {(snapshot.activeVoteSession!.round ?? 1) > 1 ? ` — Ronda ${snapshot.activeVoteSession!.round}` : ''}
               </p>
               <h1 className="text-[clamp(1.5rem,4vw,3rem)] font-bold">
@@ -142,7 +148,12 @@ export default function ProjectorPage() {
         {snapshot && hasVoteResult && voteResult && (
           <div className="w-full max-w-3xl space-y-6">
             <p className="text-sm uppercase tracking-widest text-muted-foreground text-center">
-              Resultado{(voteResult.round ?? 1) > 1 ? ` — Ronda ${voteResult.round}` : ''}
+              {voteResult.electionType === 'RDR'
+                ? 'Resultado: Elección del Representante Distrital (RDR)'
+                : voteResult.electionType === 'EVENT'
+                ? 'Resultado: Elección de Sede de Evento Distrital'
+                : 'Resultado'}
+              {(voteResult.round ?? 1) > 1 ? ` — Ronda ${voteResult.round}` : ''}
             </p>
 
             {/* Candidate election result */}
@@ -164,7 +175,9 @@ export default function ProjectorPage() {
                           </span>
                           <span className="text-[clamp(1rem,2vw,1.5rem)] font-semibold">{c.displayName}</span>
                           {isWinner && (
-                            <span className="rounded-full bg-success/20 px-3 py-1 text-xs font-bold text-success">GANADOR</span>
+                            <span className="rounded-full bg-success/20 px-3 py-1 text-xs font-bold text-success">
+                              {voteResult.electionType === 'RDR' ? 'ELECTO' : voteResult.electionType === 'EVENT' ? 'SELECCIONADO' : 'GANADOR'}
+                            </span>
                           )}
                         </div>
                         <span className="text-[clamp(1.5rem,3vw,2.5rem)] font-bold tabular-nums">{c.votes}</span>
@@ -181,7 +194,11 @@ export default function ProjectorPage() {
                 <div className="text-center">
                   {voteResult.candidateResult.winner ? (
                     <span className="inline-flex items-center rounded-full bg-success/20 px-6 py-2 text-xl font-bold text-success">
-                      GANADOR: {voteResult.candidateResult.winner.displayName.toUpperCase()}
+                      {voteResult.electionType === 'RDR'
+                        ? `RDR ELECTO: ${voteResult.candidateResult.winner.displayName.toUpperCase()}`
+                        : voteResult.electionType === 'EVENT'
+                        ? `SEDE ELEGIDA: ${voteResult.candidateResult.winner.displayName.toUpperCase()}`
+                        : `GANADOR: ${voteResult.candidateResult.winner.displayName.toUpperCase()}`}
                     </span>
                   ) : voteResult.candidateResult.isTied ? (
                     <span className="inline-flex items-center rounded-full bg-warning/20 px-6 py-2 text-xl font-bold text-warning">

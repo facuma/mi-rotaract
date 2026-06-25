@@ -379,6 +379,13 @@ function ResetPasswordDialog({
 
 // ─── página principal ─────────────────────────────────────────────────────────
 
+const getEffectiveRole = (u: AdminUser): string => {
+  if (u.role === 'PARTICIPANT' && u.memberships?.some((m) => m.isPresident)) {
+    return 'PRESIDENT';
+  }
+  return u.role;
+};
+
 export default function AdminUsuariosPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [clubs, setClubs] = useState<Club[]>([]);
@@ -414,7 +421,8 @@ export default function AdminUsuariosPage() {
         !q ||
         u.fullName.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q);
-      const matchRole = roleFilter === 'ALL' || u.role === roleFilter;
+      const effectiveRole = getEffectiveRole(u);
+      const matchRole = roleFilter === 'ALL' || effectiveRole === roleFilter;
       const matchStatus =
         statusFilter === 'ALL' ||
         (statusFilter === 'ACTIVE' ? u.isActive : !u.isActive);
@@ -533,8 +541,8 @@ export default function AdminUsuariosPage() {
                     </TableCell>
 
                     <TableCell>
-                      <Badge variant={ROLE_VARIANT[u.role] ?? 'secondary'}>
-                        {ROLE_LABELS[u.role] ?? u.role}
+                      <Badge variant={ROLE_VARIANT[getEffectiveRole(u)] ?? 'secondary'}>
+                        {ROLE_LABELS[getEffectiveRole(u)] ?? u.role}
                       </Badge>
                     </TableCell>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { votingApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -21,6 +21,7 @@ export function VoteActionPanel({
   topicTitle,
   ballotType = 'YES_NO',
   candidates = [],
+  initialVote = null,
   onVoted,
 }: {
   meetingId: string;
@@ -28,10 +29,28 @@ export function VoteActionPanel({
   topicTitle: string;
   ballotType?: 'YES_NO' | 'CANDIDATE';
   candidates?: VoteCandidate[];
+  initialVote?: { choice: string; candidateId?: string | null; voteSessionId?: string } | null;
   onVoted?: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [voted, setVoted] = useState<{ choice: VoteChoice; candidateId?: string } | null>(null);
+
+  useEffect(() => {
+    if (initialVote && initialVote.voteSessionId === voteSessionId) {
+      setVoted({
+        choice: initialVote.choice as VoteChoice,
+        candidateId: initialVote.candidateId ?? undefined,
+      });
+    } else if (initialVote && !('voteSessionId' in initialVote)) {
+      // Fallback if voteSessionId is not present in the payload but we know it belongs to the current session
+      setVoted({
+        choice: initialVote.choice as VoteChoice,
+        candidateId: initialVote.candidateId ?? undefined,
+      });
+    } else {
+      setVoted(null);
+    }
+  }, [initialVote, voteSessionId]);
 
   async function submitChoice(choice: VoteChoice, candidateId?: string) {
     setLoading(true);

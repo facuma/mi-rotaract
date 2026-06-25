@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import { votingApi, timersApi, topicsApi, queueApi, meetingsApi } from '@/lib/api';
+import { useCallback, useState, useEffect } from 'react';
+import { votingApi, timersApi, topicsApi, queueApi, meetingsApi, usersApi, clubsApi } from '@/lib/api';
 import { VoteReadyModal } from '@/components/meetings/VoteReadyModal';
 import { VoteResultSummary } from '@/components/VoteResultSummary';
 import { Button } from '@/components/ui/button';
@@ -92,7 +92,18 @@ export function AdminLiveControls({
   const [votingMethod, setVotingMethod] = useState('PUBLIC');
   const [requiredMajority, setRequiredMajority] = useState('SIMPLE');
   const [ballotType, setBallotType] = useState<'YES_NO' | 'CANDIDATE'>('YES_NO');
-  const [candidates, setCandidates] = useState<string[]>(['', '']);
+  
+  type CandidateObj = { displayName: string; userId?: string | null };
+  const [candidates, setCandidates] = useState<CandidateObj[]>([{ displayName: '' }, { displayName: '' }]);
+  const [voteType, setVoteType] = useState<'GENERAL' | 'RDR' | 'EVENT' | 'CUSTOM_CANDIDATE'>('GENERAL');
+  const [availableUsers, setAvailableUsers] = useState<{ id: string; fullName: string; email: string }[]>([]);
+  const [availableClubs, setAvailableClubs] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    usersApi.list().then(setAvailableUsers).catch(() => {});
+    clubsApi.list().then(setAvailableClubs).catch(() => {});
+  }, []);
+
   const [showVoteReadyModal, setShowVoteReadyModal] = useState(false);
   const [pendingVoteTopicId, setPendingVoteTopicId] = useState<string | null>(null);
   const [lockingAttendance, setLockingAttendance] = useState(false);
@@ -117,7 +128,7 @@ export function AdminLiveControls({
 
   function handleOpenVoteClick(topicId: string) {
     if (ballotType === 'CANDIDATE') {
-      const valid = candidates.filter((c) => c.trim());
+      const valid = candidates.filter((c) => c.displayName.trim());
       if (valid.length < 1) {
         toast.error('Ingresá al menos un candidato.');
         return;
@@ -148,8 +159,14 @@ export function AdminLiveControls({
       ballotType,
     };
     if (ballotType === 'CANDIDATE') {
-      opts.candidates = candidates.filter((c) => c.trim()).map((displayName) => ({ displayName }));
+      opts.candidates = candidates
+        .filter((c) => c.displayName.trim())
+        .map((c) => ({
+          displayName: c.displayName.trim(),
+          userId: c.userId || undefined,
+        }));
       opts.isElection = true;
+      opts.electionType = voteType === 'RDR' ? 'RDR' : voteType === 'EVENT' ? 'EVENT' : undefined;
     }
     try {
       await votingApi.open(meetingId, topicId, opts);
@@ -506,49 +523,98 @@ export function AdminLiveControls({
             {/* Open new vote */}
             {currentTopic ? (
               <div className="space-y-3">
-                {/* Ballot type */}
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setBallotType('YES_NO')}
-                    className={cn(
-                      'flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
-                      ballotType === 'YES_NO' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background hover:bg-muted',
-                    )}
+                {/* Vote type selector */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Tipo de Votación</Label>
+                  <Select
+                    value={voteType}
+                    onValueChange={(val: any) => {
+                      setVoteType(val);
+                      if (val === 'GENERAL') {
+                        setBallotType('YES_NO');
+                        setRequiredMajority('SIMPLE');
+                      } else {
+                        setBallotType('CANDIDATE');
+                        setRequiredMajority('ABSOLUTE');
+                        if (candidates.length < 2) {
+                          setCandidates([{ displayName: '' }, { displayName: '' }]);
+                        }
+                      }
+                    }}
                   >
-                    Sí / No
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setBallotType('CANDIDATE'); setRequiredMajority('ABSOLUTE'); }}
-                    className={cn(
-                      'flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
-                      ballotType === 'CANDIDATE' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background hover:bg-muted',
-                    )}
-                  >
-                    Elección candidatos
-                  </button>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="GENERAL">Moción General (Sí/No/Abstención)</SelectItem>
+                      <SelectItem value="RDR">Elección de RDR (Art. 64)</SelectItem>
+                      <SelectItem value="EVENT">Elección de Sede (Eventos Distritales)</SelectItem>
+                      <SelectItem value="CUSTOM_CANDIDATE">Elección Personalizada de Candidatos</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Candidate inputs */}
                 {ballotType === 'CANDIDATE' && (
                   <div className="space-y-2">
-                    <Label className="text-xs">Candidatos</Label>
-                    {candidates.map((name, i) => (
+                    <Label className="text-xs">
+                      Candidatos ({voteType === 'RDR' ? 'Candidatos RDR' : voteType === 'EVENT' ? 'Clubes Postulados' : 'Candidatos'})
+                    </Label>
+                    {candidates.map((c, i) => (
                       <div key={i} className="flex items-center gap-2">
                         <span className="text-xs w-5 font-medium text-muted-foreground">
                           {String.fromCharCode(65 + i)}.
                         </span>
-                        <Input
-                          placeholder={`Candidato ${String.fromCharCode(65 + i)}`}
-                          value={name}
-                          onChange={(e) => {
-                            const next = [...candidates];
-                            next[i] = e.target.value;
-                            setCandidates(next);
-                          }}
-                          className="h-8 text-sm"
-                        />
+                        <div className="flex-1 relative">
+                          <Input
+                            list={`cand-suggestions-${i}`}
+                            placeholder={
+                              voteType === 'RDR' ? 'Buscar usuario o escribir nombre...' :
+                              voteType === 'EVENT' ? 'Buscar club o escribir nombre...' :
+                              `Candidato ${String.fromCharCode(65 + i)}`
+                            }
+                            value={c.displayName}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              let matchedUserId: string | null = null;
+                              if (voteType === 'RDR') {
+                                const match = availableUsers.find(
+                                  (u) => u.fullName === val || `${u.fullName} (${u.email})` === val
+                                );
+                                if (match) {
+                                  matchedUserId = match.id;
+                                }
+                              }
+                              const next = [...candidates];
+                              next[i] = { displayName: val, userId: matchedUserId };
+                              setCandidates(next);
+                            }}
+                            onBlur={(e) => {
+                              const val = e.target.value;
+                              if (voteType === 'RDR') {
+                                const match = availableUsers.find(
+                                  (u) => u.fullName === val || `${u.fullName} (${u.email})` === val
+                                );
+                                if (match) {
+                                  const next = [...candidates];
+                                  next[i] = { displayName: match.fullName, userId: match.id };
+                                  setCandidates(next);
+                                }
+                              }
+                            }}
+                            className="h-8 text-sm"
+                          />
+                          <datalist id={`cand-suggestions-${i}`}>
+                            {voteType === 'RDR' &&
+                              availableUsers.map((u) => (
+                                <option key={u.id} value={`${u.fullName} (${u.email})`} />
+                              ))}
+                            {voteType === 'EVENT' &&
+                              availableClubs.map((club) => (
+                                <option key={club.id} value={club.name} />
+                              ))}
+                          </datalist>
+                        </div>
                         {candidates.length > 1 && (
                           <button
                             type="button"
@@ -564,7 +630,7 @@ export function AdminLiveControls({
                       variant="outline"
                       size="sm"
                       className="w-full h-7 text-xs"
-                      onClick={() => setCandidates([...candidates, ''])}
+                      onClick={() => setCandidates([...candidates, { displayName: '' }])}
                     >
                       + Agregar candidato
                     </Button>
@@ -581,7 +647,45 @@ export function AdminLiveControls({
                       <SelectItem value="SECRET">Secreta</SelectItem>
                     </SelectContent>
                   </Select>
-                  {ballotType === 'YES_NO' && (
+                  
+                  {voteType === 'CUSTOM_CANDIDATE' && ballotType === 'CANDIDATE' && (
+                    <Select value={requiredMajority} onValueChange={setRequiredMajority}>
+                      <SelectTrigger className="w-44">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="SIMPLE">Mayoría Simple</SelectItem>
+                        <SelectItem value="ABSOLUTE">Mayoría Absoluta</SelectItem>
+                        <SelectItem value="TWO_THIRDS">Dos Tercios</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {voteType === 'RDR' && (
+                    <Select value={requiredMajority} onValueChange={setRequiredMajority}>
+                      <SelectTrigger className="w-44">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ABSOLUTE">Mayoría Absoluta (Art. 64)</SelectItem>
+                        <SelectItem value="TWO_THIRDS">Dos Tercios (Art. 65-66)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {voteType === 'EVENT' && (
+                    <Select value={requiredMajority} onValueChange={setRequiredMajority}>
+                      <SelectTrigger className="w-44">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ABSOLUTE">Mayoría Absoluta (Art. 64/47)</SelectItem>
+                        <SelectItem value="TWO_THIRDS">Dos Tercios</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {voteType === 'GENERAL' && ballotType === 'YES_NO' && (
                     <Select value={requiredMajority} onValueChange={setRequiredMajority}>
                       <SelectTrigger className="w-44">
                         <SelectValue />
@@ -594,17 +698,6 @@ export function AdminLiveControls({
                       </SelectContent>
                     </Select>
                   )}
-                  {ballotType === 'CANDIDATE' && (
-                    <Select value={requiredMajority} onValueChange={setRequiredMajority}>
-                      <SelectTrigger className="w-44">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ABSOLUTE">Mayoría Absoluta (Art. 64)</SelectItem>
-                        <SelectItem value="TWO_THIRDS">Dos Tercios (Art. 65-66)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
                 </div>
 
                 {clubsPresent !== undefined && clubsPresent > 0 && (
@@ -614,7 +707,7 @@ export function AdminLiveControls({
                 )}
 
                 <Button onClick={() => handleOpenVoteClick(currentTopic.id)} className="w-full">
-                  {ballotType === 'CANDIDATE' ? 'Abrir elección' : 'Abrir votación'}: {currentTopic.title}
+                  Abrir votación: {currentTopic.title}
                 </Button>
               </div>
             ) : (
