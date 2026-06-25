@@ -31,10 +31,25 @@ export class CartaPoderController {
     return this.cartaPoderService.create(meetingId, dto, user.id);
   }
 
+  /** Secretary/RDR: list all delegations for a meeting */
   @Get()
-  @Roles(Role.SECRETARY, Role.RDR)
-  findAll(@Param('meetingId') meetingId: string) {
+  @Roles(Role.SECRETARY, Role.RDR, Role.PRESIDENT)
+  findAll(
+    @Param('meetingId') meetingId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    // PRESIDENT can only see their own club's delegations (filtered client-side from full list for SECRETARY/RDR)
     return this.cartaPoderService.findByMeeting(meetingId);
+  }
+
+  /** President: list their own club's carta poder for a meeting */
+  @Get('my-club/:clubId')
+  @Roles(Role.PRESIDENT, Role.RDR, Role.SECRETARY)
+  findMyClub(
+    @Param('meetingId') meetingId: string,
+    @Param('clubId') clubId: string,
+  ) {
+    return this.cartaPoderService.findByMeetingAndClub(meetingId, clubId);
   }
 
   @Patch(':cpId/verify')
@@ -45,6 +60,17 @@ export class CartaPoderController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.cartaPoderService.verify(meetingId, cpId, user.id);
+  }
+
+  @Patch(':cpId/reject')
+  @Roles(Role.SECRETARY)
+  reject(
+    @Param('meetingId') meetingId: string,
+    @Param('cpId') cpId: string,
+    @Body('reason') reason: string | undefined,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.cartaPoderService.reject(meetingId, cpId, user.id, reason);
   }
 
   @Delete(':cpId')

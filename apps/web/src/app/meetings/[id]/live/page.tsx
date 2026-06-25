@@ -87,6 +87,8 @@ export default function ParticipantLivePage() {
               meetingId={meetingId}
               voteSessionId={snapshot.activeVoteSession.id}
               topicTitle={snapshot.activeVoteSession.topicTitle}
+              ballotType={snapshot.activeVoteSession.ballotType ?? 'YES_NO'}
+              candidates={snapshot.activeVoteSession.candidates ?? []}
             />
           )}
 
@@ -109,6 +111,13 @@ export default function ParticipantLivePage() {
               no={voteResult.no}
               abstain={voteResult.abstain}
               total={voteResult.total}
+              approved={voteResult.approved}
+              isTied={voteResult.isTied}
+              requiredMajority={voteResult.requiredMajority}
+              ballotType={voteResult.ballotType}
+              round={voteResult.round}
+              candidateResult={voteResult.candidateResult}
+              rdrTiebreakerUsed={voteResult.rdrTiebreakerUsed}
             />
           )}
         </>

@@ -18,6 +18,13 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/dashboard',
     label: 'Inicio',
     icon: 'home',
+    roles: ['SECRETARY', 'PRESIDENT', 'RDR', 'PARTICIPANT', 'SUPERADMIN'],
+  },
+  {
+    href: '/talento',
+    label: 'Talento',
+    icon: 'search',
+    roles: ['COMPANY'],
   },
   {
     label: 'Distrito',
@@ -43,6 +50,7 @@ export const NAV_ITEMS: NavItem[] = [
       { href: '/club', label: 'Vista general', icon: 'layoutDashboard' },
       { href: '/club/informes', label: 'Informes', icon: 'fileText' },
       { href: '/club/proyectos', label: 'Proyectos', icon: 'folderKanban' },
+      { href: '/club/delegaciones', label: 'Delegaciones', icon: 'userCheck', roles: ['PRESIDENT'] },
     ],
   },
   {
@@ -56,6 +64,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: 'Reuniones',
     icon: 'calendar',
+    roles: ['SECRETARY', 'PRESIDENT', 'RDR', 'PARTICIPANT', 'SUPERADMIN'],
     children: [
       { href: '/meetings', label: 'Mis reuniones', icon: 'calendarDays' },
       {
@@ -70,6 +79,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: 'Eventos',
     icon: 'calendarCheck',
+    roles: ['SECRETARY', 'PRESIDENT', 'RDR', 'PARTICIPANT', 'SUPERADMIN'],
     children: [
       { href: '/eventos', label: 'Eventos', icon: 'calendar' },
       {
@@ -97,6 +107,12 @@ export const NAV_ITEMS: NavItem[] = [
       },
       { href: '/perfil/profesional', label: 'Mi perfil profesional', icon: 'user' },
     ],
+  },
+  {
+    href: '/admin/usuarios',
+    label: 'Usuarios',
+    icon: 'userCog',
+    roles: ['SUPERADMIN'],
   },
   {
     label: 'Configuración',

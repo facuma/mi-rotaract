@@ -1,7 +1,11 @@
 import {
+  Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
+  Param,
+  Patch,
   Post,
   Query,
   Res,
@@ -20,7 +24,7 @@ import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user
 
 @Controller('users')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+@Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR, Role.SUPERADMIN)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
@@ -48,5 +52,45 @@ export class UsersController {
   @Get()
   findAll() {
     return this.usersService.findAll();
+  }
+
+  @Patch(':id')
+  @Roles(Role.SUPERADMIN)
+  update(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      fullName?: string;
+      email?: string;
+      role?: Role;
+      isActive?: boolean;
+    },
+  ) {
+    return this.usersService.updateUser(id, body);
+  }
+
+  @Post(':id/reset-password')
+  @Roles(Role.SUPERADMIN)
+  @HttpCode(200)
+  resetPassword(@Param('id') id: string) {
+    return this.usersService.adminResetPassword(id);
+  }
+
+  @Post(':id/memberships')
+  @Roles(Role.SUPERADMIN)
+  addMembership(
+    @Param('id') id: string,
+    @Body() body: { clubId: string; title?: string },
+  ) {
+    return this.usersService.addMembership(id, body.clubId, body.title);
+  }
+
+  @Delete(':id/memberships/:clubId')
+  @Roles(Role.SUPERADMIN)
+  removeMembership(
+    @Param('id') id: string,
+    @Param('clubId') clubId: string,
+  ) {
+    return this.usersService.removeMembership(id, clubId);
   }
 }

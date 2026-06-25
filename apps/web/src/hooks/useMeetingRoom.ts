@@ -6,6 +6,28 @@ import { getStoredToken } from '@/context/AuthContext';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+export type VoteCandidate = { id: string; displayName: string; userId: string | null };
+
+export type CandidateResult = {
+  candidateId: string;
+  displayName: string;
+  userId: string | null;
+  votes: number;
+  pct: number;
+};
+
+export type CandidateVoteResult = {
+  candidateResults: CandidateResult[];
+  winner: CandidateResult | null;
+  needsRunoff: boolean;
+  runoffCandidates: CandidateResult[];
+  isTied: boolean;
+  totalVotes: number;
+  eligibleCount: number;
+  rdrTiebreakerUsed: boolean;
+  rdrTiebreakerCandidateId: string | null;
+};
+
 export type MeetingSnapshot = {
   meetingId: string;
   status: string;
@@ -22,6 +44,11 @@ export type MeetingSnapshot = {
     topicTitle: string;
     votingMethod?: string;
     requiredMajority?: string;
+    ballotType?: 'YES_NO' | 'CANDIDATE';
+    isElection?: boolean;
+    round?: number;
+    candidates?: VoteCandidate[];
+    eligibleClubCount?: number | null;
   } | null;
   speakingQueue?: { id: string; userId: string; fullName: string; position: number; status?: string }[];
   currentSpeaker?: { id: string; fullName: string } | null;
@@ -42,11 +69,55 @@ export type MeetingSnapshot = {
   clubAttendance?: { clubId: string; clubName: string; connected: boolean }[];
 };
 
-export type VoteResult = { voteSessionId: string; yes: number; no: number; abstain: number; total: number; approved?: boolean | null; isTied?: boolean; requiredMajority?: string };
+export type VoteResult = {
+  voteSessionId: string;
+  yes: number;
+  no: number;
+  abstain: number;
+  total: number;
+  approved?: boolean | null;
+  isTied?: boolean;
+  requiredMajority?: string;
+  ballotType?: 'YES_NO' | 'CANDIDATE';
+  round?: number;
+  candidateResult?: CandidateVoteResult | null;
+  rdrTiebreakerUsed?: boolean;
+};
+
+type RawVoteEvent = {
+  voteSessionId?: string;
+  counts?: { yes: number; no: number; abstain: number };
+  total?: number;
+  approved?: boolean | null;
+  isTied?: boolean;
+  requiredMajority?: string;
+  ballotType?: 'YES_NO' | 'CANDIDATE';
+  round?: number;
+  candidateResult?: CandidateVoteResult | null;
+  rdrTiebreakerUsed?: boolean;
+};
 
 function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
-  const meeting = data.meeting as { id?: string; status?: string; type?: string; isDistrictMeeting?: boolean; isInformationalOnly?: boolean; attendanceLocked?: boolean } | undefined;
-  const activeVote = data.activeVote as { voteSessionId?: string; topicId?: string; topicTitle?: string; votingMethod?: string; requiredMajority?: string } | undefined;
+  const meeting = data.meeting as {
+    id?: string;
+    status?: string;
+    type?: string;
+    isDistrictMeeting?: boolean;
+    isInformationalOnly?: boolean;
+    attendanceLocked?: boolean;
+  } | undefined;
+  const activeVote = data.activeVote as {
+    voteSessionId?: string;
+    topicId?: string;
+    topicTitle?: string;
+    votingMethod?: string;
+    requiredMajority?: string;
+    ballotType?: 'YES_NO' | 'CANDIDATE';
+    isElection?: boolean;
+    round?: number;
+    candidates?: VoteCandidate[];
+    eligibleClubCount?: number | null;
+  } | undefined;
   const quorum = data.quorum as MeetingSnapshot['quorum'] ?? null;
   const timers = (data.timers as Array<{ id: string; type: string; plannedDurationSec: number; elapsedSec?: number }>) ?? [];
   const firstTimer = timers[0];
@@ -61,7 +132,18 @@ function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
     currentTopic: data.currentTopic as MeetingSnapshot['currentTopic'],
     topics: (data.topics as MeetingSnapshot['topics']) ?? [],
     activeVoteSession: activeVote
-      ? { id: activeVote.voteSessionId ?? '', topicId: activeVote.topicId ?? '', topicTitle: activeVote.topicTitle ?? '', votingMethod: activeVote.votingMethod, requiredMajority: activeVote.requiredMajority }
+      ? {
+          id: activeVote.voteSessionId ?? '',
+          topicId: activeVote.topicId ?? '',
+          topicTitle: activeVote.topicTitle ?? '',
+          votingMethod: activeVote.votingMethod,
+          requiredMajority: activeVote.requiredMajority,
+          ballotType: activeVote.ballotType,
+          isElection: activeVote.isElection,
+          round: activeVote.round,
+          candidates: activeVote.candidates ?? [],
+          eligibleClubCount: activeVote.eligibleClubCount,
+        }
       : null,
     quorum,
     speakingQueue: ((data.speakingQueue as Array<{ id: string; userId: string; fullName?: string; user?: { fullName?: string }; position: number; status?: string }>) ?? []).map((r) => ({
@@ -134,14 +216,40 @@ export function useMeetingRoom(meetingId: string | null) {
       setSnapshot(normalizeSnapshot(data));
       setJoinError(null);
     });
-    s.on('meeting.vote.closed', (data: { voteSessionId?: string; counts?: { yes: number; no: number; abstain: number }; total?: number }) => {
-      if (data.voteSessionId && data.counts != null && data.total != null) {
-        setVoteResult({ voteSessionId: data.voteSessionId, ...data.counts, total: data.total });
+    s.on('meeting.vote.closed', (data: RawVoteEvent) => {
+      if (data.voteSessionId) {
+        setVoteResult({
+          voteSessionId: data.voteSessionId,
+          yes: data.counts?.yes ?? 0,
+          no: data.counts?.no ?? 0,
+          abstain: data.counts?.abstain ?? 0,
+          total: data.total ?? 0,
+          approved: data.approved,
+          isTied: data.isTied,
+          requiredMajority: data.requiredMajority,
+          ballotType: data.ballotType,
+          round: data.round,
+          candidateResult: data.candidateResult,
+          rdrTiebreakerUsed: data.rdrTiebreakerUsed,
+        });
       }
     });
-    s.on('meeting.vote.result', (data: { voteSessionId?: string; counts?: { yes: number; no: number; abstain: number }; total?: number }) => {
-      if (data.voteSessionId && data.counts != null && data.total != null) {
-        setVoteResult({ voteSessionId: data.voteSessionId, ...data.counts, total: data.total });
+    s.on('meeting.vote.result', (data: RawVoteEvent) => {
+      if (data.voteSessionId) {
+        setVoteResult({
+          voteSessionId: data.voteSessionId,
+          yes: data.counts?.yes ?? 0,
+          no: data.counts?.no ?? 0,
+          abstain: data.counts?.abstain ?? 0,
+          total: data.total ?? 0,
+          approved: data.approved,
+          isTied: data.isTied,
+          requiredMajority: data.requiredMajority,
+          ballotType: data.ballotType,
+          round: data.round,
+          candidateResult: data.candidateResult,
+          rdrTiebreakerUsed: data.rdrTiebreakerUsed,
+        });
       }
     });
     s.on('error', (data: { message?: string }) => {

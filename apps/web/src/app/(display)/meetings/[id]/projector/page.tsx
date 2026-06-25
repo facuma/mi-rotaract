@@ -112,16 +112,28 @@ export default function ProjectorPage() {
           <div className="w-full max-w-3xl space-y-6 text-center">
             <div className="rounded-2xl border-2 border-primary/50 bg-primary/5 p-8 space-y-4 animate-pulse">
               <p className="text-sm uppercase tracking-widest text-muted-foreground">
-                Votación abierta
+                {snapshot.activeVoteSession!.ballotType === 'CANDIDATE' ? 'Elección abierta' : 'Votación abierta'}
+                {(snapshot.activeVoteSession!.round ?? 1) > 1 ? ` — Ronda ${snapshot.activeVoteSession!.round}` : ''}
               </p>
               <h1 className="text-[clamp(1.5rem,4vw,3rem)] font-bold">
                 {snapshot.activeVoteSession!.topicTitle}
               </h1>
-              <div className="flex justify-center gap-4 text-sm text-muted-foreground">
-                <span>{snapshot.activeVoteSession!.votingMethod === 'SECRET' ? 'Secreta' : 'Pública'}</span>
-                <span>•</span>
-                <span>{MAJORITY_TYPE_LABELS[snapshot.activeVoteSession!.requiredMajority ?? 'SIMPLE'] ?? 'Mayoría Simple'}</span>
-              </div>
+              {snapshot.activeVoteSession!.ballotType === 'CANDIDATE' && (snapshot.activeVoteSession!.candidates?.length ?? 0) > 0 ? (
+                <div className="flex flex-wrap justify-center gap-3">
+                  {snapshot.activeVoteSession!.candidates!.map((c, i) => (
+                    <span key={c.id} className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium">
+                      <span className="text-xs font-bold text-primary">{String.fromCharCode(65 + i)}</span>
+                      {c.displayName}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex justify-center gap-4 text-sm text-muted-foreground">
+                  <span>{snapshot.activeVoteSession!.votingMethod === 'SECRET' ? 'Secreta' : 'Pública'}</span>
+                  <span>•</span>
+                  <span>{MAJORITY_TYPE_LABELS[snapshot.activeVoteSession!.requiredMajority ?? 'SIMPLE'] ?? 'Mayoría Simple'}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -130,50 +142,98 @@ export default function ProjectorPage() {
         {snapshot && hasVoteResult && voteResult && (
           <div className="w-full max-w-3xl space-y-6">
             <p className="text-sm uppercase tracking-widest text-muted-foreground text-center">
-              Resultado
+              Resultado{(voteResult.round ?? 1) > 1 ? ` — Ronda ${voteResult.round}` : ''}
             </p>
-            <div className="grid grid-cols-3 gap-6 text-center">
-              <div>
-                <p className="text-[clamp(2rem,5vw,4rem)] font-bold tabular-nums text-success">{voteResult.yes}</p>
-                <p className="text-sm text-muted-foreground">A favor</p>
+
+            {/* Candidate election result */}
+            {voteResult.ballotType === 'CANDIDATE' && voteResult.candidateResult ? (
+              <div className="space-y-4">
+                {voteResult.candidateResult.candidateResults.map((c, i) => {
+                  const isWinner = voteResult.candidateResult?.winner?.candidateId === c.candidateId;
+                  const maxVotes = voteResult.candidateResult!.candidateResults[0]?.votes ?? 1;
+                  const barW = maxVotes > 0 ? Math.round((c.votes / maxVotes) * 100) : 0;
+                  return (
+                    <div key={c.candidateId} className={cn(
+                      'rounded-xl p-4 space-y-2 border',
+                      isWinner ? 'border-success/50 bg-success/10' : 'border-border bg-muted/20',
+                    )}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="flex size-8 items-center justify-center rounded-full bg-primary/20 text-sm font-bold text-primary">
+                            {String.fromCharCode(65 + i)}
+                          </span>
+                          <span className="text-[clamp(1rem,2vw,1.5rem)] font-semibold">{c.displayName}</span>
+                          {isWinner && (
+                            <span className="rounded-full bg-success/20 px-3 py-1 text-xs font-bold text-success">GANADOR</span>
+                          )}
+                        </div>
+                        <span className="text-[clamp(1.5rem,3vw,2.5rem)] font-bold tabular-nums">{c.votes}</span>
+                      </div>
+                      <div className="h-3 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={cn('h-full transition-all duration-700', isWinner ? 'bg-success' : 'bg-primary/40')}
+                          style={{ width: `${barW}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="text-center">
+                  {voteResult.candidateResult.winner ? (
+                    <span className="inline-flex items-center rounded-full bg-success/20 px-6 py-2 text-xl font-bold text-success">
+                      GANADOR: {voteResult.candidateResult.winner.displayName.toUpperCase()}
+                    </span>
+                  ) : voteResult.candidateResult.isTied ? (
+                    <span className="inline-flex items-center rounded-full bg-warning/20 px-6 py-2 text-xl font-bold text-warning">
+                      EMPATE — Desempate RDR (Art. 49)
+                    </span>
+                  ) : voteResult.candidateResult.needsRunoff ? (
+                    <span className="inline-flex items-center rounded-full bg-info/20 px-6 py-2 text-xl font-bold text-info">
+                      SEGUNDA VUELTA (Art. 64i)
+                    </span>
+                  ) : null}
+                </div>
               </div>
-              <div>
-                <p className="text-[clamp(2rem,5vw,4rem)] font-bold tabular-nums text-destructive">{voteResult.no}</p>
-                <p className="text-sm text-muted-foreground">En contra</p>
-              </div>
-              <div>
-                <p className="text-[clamp(2rem,5vw,4rem)] font-bold tabular-nums text-muted-foreground">{voteResult.abstain}</p>
-                <p className="text-sm text-muted-foreground">Abstención</p>
-              </div>
-            </div>
-            {/* Progress bar */}
-            {(voteResult.yes + voteResult.no + voteResult.abstain) > 0 && (
-              <div className="flex h-4 overflow-hidden rounded-full bg-muted">
-                {voteResult.yes > 0 && (
-                  <div className="bg-success transition-all" style={{ width: `${(voteResult.yes / (voteResult.yes + voteResult.no + voteResult.abstain)) * 100}%` }} />
+            ) : (
+              /* YES/NO result */
+              <>
+                <div className="grid grid-cols-3 gap-6 text-center">
+                  <div>
+                    <p className="text-[clamp(2rem,5vw,4rem)] font-bold tabular-nums text-success">{voteResult.yes}</p>
+                    <p className="text-sm text-muted-foreground">A favor</p>
+                  </div>
+                  <div>
+                    <p className="text-[clamp(2rem,5vw,4rem)] font-bold tabular-nums text-destructive">{voteResult.no}</p>
+                    <p className="text-sm text-muted-foreground">En contra</p>
+                  </div>
+                  <div>
+                    <p className="text-[clamp(2rem,5vw,4rem)] font-bold tabular-nums text-muted-foreground">{voteResult.abstain}</p>
+                    <p className="text-sm text-muted-foreground">Abstención</p>
+                  </div>
+                </div>
+                {(voteResult.yes + voteResult.no + voteResult.abstain) > 0 && (
+                  <div className="flex h-4 overflow-hidden rounded-full bg-muted">
+                    {voteResult.yes > 0 && <div className="bg-success transition-all" style={{ width: `${(voteResult.yes / (voteResult.yes + voteResult.no + voteResult.abstain)) * 100}%` }} />}
+                    {voteResult.no > 0 && <div className="bg-destructive transition-all" style={{ width: `${(voteResult.no / (voteResult.yes + voteResult.no + voteResult.abstain)) * 100}%` }} />}
+                    {voteResult.abstain > 0 && <div className="bg-muted-foreground/30 transition-all" style={{ width: `${(voteResult.abstain / (voteResult.yes + voteResult.no + voteResult.abstain)) * 100}%` }} />}
+                  </div>
                 )}
-                {voteResult.no > 0 && (
-                  <div className="bg-destructive transition-all" style={{ width: `${(voteResult.no / (voteResult.yes + voteResult.no + voteResult.abstain)) * 100}%` }} />
-                )}
-                {voteResult.abstain > 0 && (
-                  <div className="bg-muted-foreground/30 transition-all" style={{ width: `${(voteResult.abstain / (voteResult.yes + voteResult.no + voteResult.abstain)) * 100}%` }} />
-                )}
-              </div>
+                <div className="text-center">
+                  {voteResult.approved !== undefined && voteResult.approved !== null ? (
+                    <span className={cn(
+                      'inline-flex items-center rounded-full px-4 py-2 text-lg font-bold',
+                      voteResult.approved ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive',
+                    )}>
+                      {voteResult.approved ? 'APROBADA' : 'RECHAZADA'}
+                    </span>
+                  ) : voteResult.isTied ? (
+                    <span className="inline-flex items-center rounded-full bg-warning/20 px-4 py-2 text-lg font-bold text-warning">
+                      EMPATE — Desempate RDR
+                    </span>
+                  ) : null}
+                </div>
+              </>
             )}
-            <div className="text-center">
-              {voteResult.approved !== undefined && voteResult.approved !== null ? (
-                <span className={cn(
-                  'inline-flex items-center rounded-full px-4 py-2 text-lg font-bold',
-                  voteResult.approved ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive',
-                )}>
-                  {voteResult.approved ? 'APROBADA' : 'RECHAZADA'}
-                </span>
-              ) : voteResult.isTied ? (
-                <span className="inline-flex items-center rounded-full bg-warning/20 px-4 py-2 text-lg font-bold text-warning">
-                  EMPATE — Desempate RDR
-                </span>
-              ) : null}
-            </div>
           </div>
         )}
       </main>

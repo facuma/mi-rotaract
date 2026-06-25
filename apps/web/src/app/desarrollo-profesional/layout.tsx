@@ -1,8 +1,7 @@
 'use client';
 
 import { ProtectedAppLayout } from '@/components/auth/ProtectedAppLayout';
-
-const DEV_PROF_ROLES = ['PRESIDENT', 'RDR', 'PARTICIPANT', 'SECRETARY'];
+import { ROTARACT_ROLES } from '@/lib/permissions';
 
 export default function DesarrolloProfesionalLayout({
   children,
@@ -10,7 +9,7 @@ export default function DesarrolloProfesionalLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ProtectedAppLayout title="Desarrollo Profesional" allowRoles={DEV_PROF_ROLES}>
+    <ProtectedAppLayout title="Desarrollo Profesional" allowRoles={ROTARACT_ROLES}>
       {children}
     </ProtectedAppLayout>
   );

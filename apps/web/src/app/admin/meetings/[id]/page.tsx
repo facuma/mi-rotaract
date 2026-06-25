@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { meetingsApi } from '@/lib/api';
+import { meetingsApi, cartaPoderApi } from '@/lib/api';
 import { queryKeys, useMeetingDetailQuery, useMeetingTopicsQuery } from '@/lib/queries';
 import { MEETING_STATUS_LABELS } from '@/lib/meeting-constants';
 import { MeetingStatusStepper } from '@/components/meetings/MeetingStatusStepper';
@@ -18,7 +18,10 @@ import { StatStrip } from '@/components/ui/stat-strip';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/context/AuthContext';
 import {
   Card,
   CardContent,
@@ -43,6 +46,7 @@ type Meeting = {
   status: string;
   scheduledAt?: string | null;
   currentTopicId?: string | null;
+  isDistrictMeeting?: boolean;
   club?: { name: string };
   participants?: { userId: string; canVote: boolean; user?: { fullName: string } }[];
 };
@@ -57,9 +61,38 @@ type Topic = {
   status: string;
 };
 
+type CartaPoder = {
+  id: string;
+  meetingId: string;
+  clubId: string;
+  status: string;
+  rejectionReason?: string | null;
+  receivedAt: string;
+  club?: { id: string; name: string } | null;
+  delegateUser?: { id: string; fullName: string; email: string } | null;
+  presidentUser?: { id: string; fullName: string; email: string } | null;
+};
+
+const CP_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Borrador',
+  PENDING_SECRETARY: 'Pendiente',
+  SUBMITTED: 'Enviada',
+  VERIFIED: 'Verificada',
+  REJECTED: 'Rechazada',
+};
+
+const CP_STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'success' | 'destructive' | 'warning' | 'outline'> = {
+  DRAFT: 'secondary',
+  PENDING_SECRETARY: 'warning',
+  SUBMITTED: 'outline',
+  VERIFIED: 'success',
+  REJECTED: 'destructive',
+};
+
 export default function MeetingDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: meetingData, isLoading: meetingLoading, error: meetingError } = useMeetingDetailQuery(id);
   const { data: topicsData } = useMeetingTopicsQuery(id);
@@ -70,8 +103,15 @@ export default function MeetingDetailPage() {
   const [bulkParticipantsOpen, setBulkParticipantsOpen] = useState(false);
   const [error, setError] = useState('');
 
-  // Use React Query topics as initial, allow local mutations
+  // Delegaciones state
+  const [cartasPoder, setCartasPoder] = useState<CartaPoder[]>([]);
+  const [cpLoading, setCpLoading] = useState(false);
+  const [rejectDialogCp, setRejectDialogCp] = useState<CartaPoder | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [cpActioning, setCpActioning] = useState(false);
+
   const displayTopics = topics ?? (topicsData as Topic[] | undefined) ?? [];
+  const isSecretary = user?.role === 'SECRETARY' || user?.role === 'SUPERADMIN';
 
   function handleTopicsChange(newTopics: Topic[]) {
     setTopics(newTopics);
@@ -80,6 +120,23 @@ export default function MeetingDetailPage() {
   async function refreshMeeting() {
     queryClient.invalidateQueries({ queryKey: queryKeys.meetingDetail(id) });
   }
+
+  const loadCartasPoder = useCallback(async () => {
+    if (!isSecretary) return;
+    setCpLoading(true);
+    try {
+      const cps = (await cartaPoderApi.list(id)) as CartaPoder[];
+      setCartasPoder(cps);
+    } catch {
+      // Silently fail — not a critical feature
+    } finally {
+      setCpLoading(false);
+    }
+  }, [id, isSecretary]);
+
+  useEffect(() => {
+    if (id && isSecretary) loadCartasPoder();
+  }, [id, isSecretary, loadCartasPoder]);
 
   async function doAction(fn: () => Promise<unknown>) {
     setError('');
@@ -109,6 +166,35 @@ export default function MeetingDetailPage() {
     }
   }
 
+  async function handleVerifyCp(cpId: string) {
+    setCpActioning(true);
+    try {
+      await cartaPoderApi.verify(id, cpId);
+      toast.success('Delegación verificada. El delegado fue habilitado para votar.');
+      loadCartasPoder();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setCpActioning(false);
+    }
+  }
+
+  async function handleRejectCp() {
+    if (!rejectDialogCp) return;
+    setCpActioning(true);
+    try {
+      await cartaPoderApi.reject(id, rejectDialogCp.id, rejectReason || undefined);
+      toast.success('Delegación rechazada.');
+      setRejectDialogCp(null);
+      setRejectReason('');
+      loadCartasPoder();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setCpActioning(false);
+    }
+  }
+
   if (meetingLoading) {
     return (
       <div className="space-y-6">
@@ -134,6 +220,7 @@ export default function MeetingDetailPage() {
   if (!meeting) return null;
 
   const totalDurationMin = displayTopics.reduce((acc, t) => acc + (t.estimatedDurationSec ?? 0), 0) / 60;
+  const pendingCps = cartasPoder.filter((cp) => cp.status === 'PENDING_SECRETARY' || cp.status === 'DRAFT');
 
   return (
     <div className="space-y-6">
@@ -150,45 +237,28 @@ export default function MeetingDetailPage() {
         actions={
           <div className="flex flex-wrap gap-2">
             {meeting.status === 'DRAFT' && (
-              <Button
-                disabled={actioning}
-                onClick={() => doAction(() => meetingsApi.schedule(id))}
-              >
+              <Button disabled={actioning} onClick={() => doAction(() => meetingsApi.schedule(id))}>
                 Programar
               </Button>
             )}
             {(meeting.status === 'DRAFT' || meeting.status === 'SCHEDULED') && (
-              <Button
-                disabled={actioning}
-                onClick={() => doAction(() => meetingsApi.start(id))}
-              >
+              <Button disabled={actioning} onClick={() => doAction(() => meetingsApi.start(id))}>
                 Iniciar reunión
               </Button>
             )}
             {meeting.status === 'LIVE' && (
-              <Button
-                variant="secondary"
-                disabled={actioning}
-                onClick={() => doAction(() => meetingsApi.pause(id))}
-              >
+              <Button variant="secondary" disabled={actioning} onClick={() => doAction(() => meetingsApi.pause(id))}>
                 Pausar
               </Button>
             )}
             {meeting.status === 'PAUSED' && (
-              <Button
-                disabled={actioning}
-                onClick={() => doAction(() => meetingsApi.resume(id))}
-              >
+              <Button disabled={actioning} onClick={() => doAction(() => meetingsApi.resume(id))}>
                 Reanudar
               </Button>
             )}
             {(meeting.status === 'LIVE' || meeting.status === 'PAUSED') && (
               <>
-                <Button
-                  variant="destructive"
-                  disabled={actioning}
-                  onClick={() => setConfirmFinish(true)}
-                >
+                <Button variant="destructive" disabled={actioning} onClick={() => setConfirmFinish(true)}>
                   Finalizar
                 </Button>
                 <Button asChild>
@@ -200,10 +270,8 @@ export default function MeetingDetailPage() {
         }
       />
 
-      {/* Status stepper */}
       <MeetingStatusStepper currentStatus={meeting.status} />
 
-      {/* Stats */}
       <StatStrip
         items={[
           { label: 'Temas', value: displayTopics.length },
@@ -225,6 +293,91 @@ export default function MeetingDetailPage() {
         <Card>
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">{meeting.description}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Delegaciones (Secretary only, district meetings) */}
+      {isSecretary && meeting.isDistrictMeeting && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  Delegaciones (Cartas Poder)
+                  {pendingCps.length > 0 && (
+                    <Badge variant="warning" className="text-xs">{pendingCps.length} pendiente{pendingCps.length !== 1 ? 's' : ''}</Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Revisá las cartas poder enviadas por los presidentes de club (Art. 46).
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={loadCartasPoder} disabled={cpLoading}>
+                {cpLoading ? 'Cargando...' : 'Actualizar'}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {cpLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+              </div>
+            ) : cartasPoder.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin delegaciones registradas.</p>
+            ) : (
+              <ul className="space-y-2">
+                {cartasPoder.map((cp) => (
+                  <li
+                    key={cp.id}
+                    className="rounded-lg border border-border bg-muted/20 px-3 py-3 space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-medium">{cp.club?.name ?? cp.clubId}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Delegado: {cp.delegateUser?.fullName ?? '—'} ({cp.delegateUser?.email})
+                        </p>
+                        {cp.presidentUser && (
+                          <p className="text-xs text-muted-foreground">
+                            Enviada por: {cp.presidentUser.fullName}
+                          </p>
+                        )}
+                        {cp.status === 'REJECTED' && cp.rejectionReason && (
+                          <p className="text-xs text-destructive">Motivo: {cp.rejectionReason}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={CP_STATUS_VARIANTS[cp.status] ?? 'secondary'}>
+                          {CP_STATUS_LABELS[cp.status] ?? cp.status}
+                        </Badge>
+                        {(cp.status === 'PENDING_SECRETARY' || cp.status === 'DRAFT') && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              disabled={cpActioning}
+                              onClick={() => handleVerifyCp(cp.id)}
+                            >
+                              Verificar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={cpActioning}
+                              onClick={() => { setRejectDialogCp(cp); setRejectReason(''); }}
+                            >
+                              Rechazar
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       )}
@@ -293,9 +446,7 @@ export default function MeetingDetailPage() {
                     {(p.user?.fullName ?? '?').charAt(0).toUpperCase()}
                   </span>
                   <span className="flex-1 font-medium">{p.user?.fullName ?? p.userId}</span>
-                  {p.canVote && (
-                    <Badge variant="outline" className="text-xs">Vota</Badge>
-                  )}
+                  {p.canVote && <Badge variant="outline" className="text-xs">Vota</Badge>}
                 </li>
               ))}
             </ul>
@@ -325,11 +476,37 @@ export default function MeetingDetailPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmFinish(false)}>
-              Cancelar
-            </Button>
+            <Button variant="outline" onClick={() => setConfirmFinish(false)}>Cancelar</Button>
             <Button variant="destructive" disabled={actioning} onClick={handleFinish}>
               {actioning ? 'Finalizando...' : 'Finalizar reunión'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject carta poder dialog */}
+      <Dialog open={!!rejectDialogCp} onOpenChange={(open) => { if (!open) { setRejectDialogCp(null); setRejectReason(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rechazar delegación</DialogTitle>
+            <DialogDescription>
+              Club: {rejectDialogCp?.club?.name ?? rejectDialogCp?.clubId} →{' '}
+              Delegado: {rejectDialogCp?.delegateUser?.fullName ?? '—'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="reject-reason">Motivo del rechazo (opcional)</Label>
+            <Input
+              id="reject-reason"
+              placeholder="Ej: Documentación incompleta"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectDialogCp(null)}>Cancelar</Button>
+            <Button variant="destructive" disabled={cpActioning} onClick={handleRejectCp}>
+              {cpActioning ? 'Rechazando...' : 'Rechazar'}
             </Button>
           </DialogFooter>
         </DialogContent>

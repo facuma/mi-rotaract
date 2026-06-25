@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { getDefaultRouteForRole } from '@/lib/permissions';
+import type { Role } from '@/types/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,9 +38,9 @@ export function LoginForm() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      const loggedUser = await login(email, password);
       const from = searchParams.get('from');
-      router.replace(from || '/dashboard');
+      router.replace(from || getDefaultRouteForRole(loggedUser.role as Role));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión');
     } finally {

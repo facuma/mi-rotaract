@@ -141,14 +141,28 @@ export const queueApi = {
 };
 
 export const votingApi = {
-  open: (meetingId: string, topicId: string, options?: { votingMethod?: string; requiredMajority?: string; isElection?: boolean }) =>
+  open: (
+    meetingId: string,
+    topicId: string,
+    options?: {
+      votingMethod?: string;
+      requiredMajority?: string;
+      isElection?: boolean;
+      ballotType?: 'YES_NO' | 'CANDIDATE';
+      candidates?: { displayName: string; userId?: string }[];
+    },
+  ) =>
     api<unknown>(`/meetings/${meetingId}/vote/open`, { method: 'POST', body: JSON.stringify({ topicId, ...options }) }),
   close: (meetingId: string, voteSessionId: string) =>
     api<unknown>(`/meetings/${meetingId}/vote/close`, { method: 'POST', body: JSON.stringify({ voteSessionId }) }),
-  vote: (meetingId: string, voteSessionId: string, choice: 'YES' | 'NO' | 'ABSTAIN') =>
-    api<unknown>(`/meetings/${meetingId}/vote`, { method: 'POST', body: JSON.stringify({ voteSessionId, choice }) }),
+  vote: (meetingId: string, voteSessionId: string, choice: 'YES' | 'NO' | 'ABSTAIN', candidateId?: string) =>
+    api<unknown>(`/meetings/${meetingId}/vote`, { method: 'POST', body: JSON.stringify({ voteSessionId, choice, candidateId }) }),
   rdrTiebreaker: (meetingId: string, voteSessionId: string, choice: 'YES' | 'NO' | 'ABSTAIN') =>
     api<unknown>(`/meetings/${meetingId}/vote/rdr-tiebreaker`, { method: 'POST', body: JSON.stringify({ voteSessionId, choice }) }),
+  rdrCandidateTiebreaker: (meetingId: string, voteSessionId: string, candidateId: string) =>
+    api<unknown>(`/meetings/${meetingId}/vote/rdr-candidate-tiebreaker`, { method: 'POST', body: JSON.stringify({ voteSessionId, candidateId }) }),
+  openRunoff: (meetingId: string, previousSessionId: string) =>
+    api<unknown>(`/meetings/${meetingId}/vote/runoff`, { method: 'POST', body: JSON.stringify({ previousSessionId }) }),
   current: (meetingId: string) => api<unknown>(`/meetings/${meetingId}/vote/current`),
   result: (meetingId: string, voteSessionId: string) =>
     api<unknown>(`/meetings/${meetingId}/vote/${voteSessionId}/result`),
@@ -159,8 +173,12 @@ export const cartaPoderApi = {
     api<unknown>(`/meetings/${meetingId}/carta-poder`, { method: 'POST', body: JSON.stringify(body) }),
   list: (meetingId: string) =>
     api<unknown[]>(`/meetings/${meetingId}/carta-poder`),
+  listMyClub: (meetingId: string, clubId: string) =>
+    api<unknown[]>(`/meetings/${meetingId}/carta-poder/my-club/${clubId}`),
   verify: (meetingId: string, cpId: string) =>
     api<unknown>(`/meetings/${meetingId}/carta-poder/${cpId}/verify`, { method: 'PATCH' }),
+  reject: (meetingId: string, cpId: string, reason?: string) =>
+    api<unknown>(`/meetings/${meetingId}/carta-poder/${cpId}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
   remove: (meetingId: string, cpId: string) =>
     api<unknown>(`/meetings/${meetingId}/carta-poder/${cpId}`, { method: 'DELETE' }),
 };
@@ -266,12 +284,43 @@ export const clubsApi = {
     api<unknown>(`/clubs/${id}`, { method: 'DELETE' }),
 };
 
+export type AdminUser = {
+  id: string;
+  fullName: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  memberships: {
+    clubId: string;
+    title: string | null;
+    isPresident: boolean;
+    club: { id: string; name: string; code: string };
+  }[];
+};
+
 export const usersApi = {
-  list: () =>
-    api<{ id: string; fullName: string; email: string; role: string }[]>('/users'),
+  list: () => api<AdminUser[]>('/users'),
   downloadBulkTemplate: () => downloadTemplate('/users/bulk/template', 'plantilla-usuarios.csv'),
   bulkImport: (file: File, mode?: 'partial' | 'strict') =>
     bulkImportApi('/users/bulk', file, mode),
+  update: (
+    id: string,
+    body: { fullName?: string; email?: string; role?: string; isActive?: boolean },
+  ) =>
+    api<Pick<AdminUser, 'id' | 'fullName' | 'email' | 'role' | 'isActive'>>(
+      `/users/${id}`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+    ),
+  resetPassword: (id: string) =>
+    api<{ message: string }>(`/users/${id}/reset-password`, { method: 'POST' }),
+  addMembership: (id: string, clubId: string, title?: string) =>
+    api<{ clubId: string; title: string | null; isPresident: boolean; club: { id: string; name: string; code: string } }>(
+      `/users/${id}/memberships`,
+      { method: 'POST', body: JSON.stringify({ clubId, title }) },
+    ),
+  removeMembership: (id: string, clubId: string) =>
+    api<{ message: string }>(`/users/${id}/memberships/${clubId}`, { method: 'DELETE' }),
 };
 
 export type ActiveTimer = {

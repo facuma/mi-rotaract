@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { MajorityType, Role, VotingMethod } from '@prisma/client';
+import { BallotType, MajorityType, Role, VoteChoice, VotingMethod } from '@prisma/client';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -25,6 +25,8 @@ export class VotingController {
       votingMethod?: VotingMethod;
       requiredMajority?: MajorityType;
       isElection?: boolean;
+      ballotType?: BallotType;
+      candidates?: { displayName: string; userId?: string }[];
     },
     @CurrentUser() user: CurrentUserPayload,
   ) {
@@ -32,6 +34,8 @@ export class VotingController {
       votingMethod: body.votingMethod,
       requiredMajority: body.requiredMajority,
       isElection: body.isElection,
+      ballotType: body.ballotType,
+      candidates: body.candidates,
     });
   }
 
@@ -46,27 +50,53 @@ export class VotingController {
     return this.votingService.closeVote(meetingId, voteSessionId, user.id);
   }
 
-  /** Art. 49: RDR tiebreaker – only RDR can use, only on tied votes */
+  /** Art. 49: RDR tiebreaker on YES/NO vote – only RDR can use, only on tied votes */
   @Post('vote/rdr-tiebreaker')
   @UseGuards(RolesGuard)
   @Roles(Role.RDR)
   rdrTiebreaker(
     @Param('meetingId') meetingId: string,
     @Body('voteSessionId') voteSessionId: string,
-    @Body('choice') choice: 'YES' | 'NO' | 'ABSTAIN',
+    @Body('choice') choice: VoteChoice,
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.votingService.submitRdrTiebreaker(meetingId, voteSessionId, user.id, choice);
+  }
+
+  /** Art. 49 for candidate elections: RDR picks winning candidate on tie */
+  @Post('vote/rdr-candidate-tiebreaker')
+  @UseGuards(RolesGuard)
+  @Roles(Role.RDR)
+  rdrCandidateTiebreaker(
+    @Param('meetingId') meetingId: string,
+    @Body('voteSessionId') voteSessionId: string,
+    @Body('candidateId') candidateId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.votingService.submitRdrCandidateTiebreaker(meetingId, voteSessionId, user.id, candidateId);
+  }
+
+  /** Art. 64i: Open second round (runoff) between top 2 candidates */
+  @Post('vote/runoff')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  openRunoff(
+    @Param('meetingId') meetingId: string,
+    @Body('previousSessionId') previousSessionId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.votingService.openRunoff(meetingId, previousSessionId, user.id);
   }
 
   @Post('vote')
   submit(
     @Param('meetingId') meetingId: string,
     @Body('voteSessionId') voteSessionId: string,
-    @Body('choice') choice: 'YES' | 'NO' | 'ABSTAIN',
+    @Body('choice') choice: VoteChoice,
+    @Body('candidateId') candidateId: string | undefined,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.votingService.submitVote(meetingId, voteSessionId, user.id, choice);
+    return this.votingService.submitVote(meetingId, voteSessionId, user.id, choice, candidateId);
   }
 
   @Get('vote/current')

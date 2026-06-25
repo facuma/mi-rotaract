@@ -4,18 +4,26 @@ import { useEffect, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { AppShell, AppShellSkeleton } from '@/components/layout/AppShell';
 import { useAuthState } from '@/context/AuthContext';
+import { getDefaultRouteForRole } from '@/lib/permissions';
+import type { Role } from '@/types/auth';
 
 type ProtectedAppLayoutProps = {
   title: string;
   allowRoles?: string[];
+  /** Ruta de fallback para usuarios autenticados sin rol permitido.
+   *  Si no se especifica, se usa getDefaultRouteForRole según el rol del usuario. */
   fallbackHref?: string;
+  backHref?: string;
+  backLabel?: string;
   children: ReactNode;
 };
 
 export function ProtectedAppLayout({
   title,
   allowRoles,
-  fallbackHref = '/meetings',
+  fallbackHref,
+  backHref,
+  backLabel,
   children,
 }: ProtectedAppLayoutProps) {
   const { user, isLoading } = useAuthState();
@@ -24,7 +32,8 @@ export function ProtectedAppLayout({
 
   useEffect(() => {
     router.prefetch('/login');
-    router.prefetch('/meetings');
+    router.prefetch('/dashboard');
+    router.prefetch('/talento');
   }, [router]);
 
   useEffect(() => {
@@ -34,7 +43,7 @@ export function ProtectedAppLayout({
       return;
     }
     if (allowRoles && !allowRoles.includes(user.role)) {
-      router.replace(fallbackHref);
+      router.replace(fallbackHref ?? getDefaultRouteForRole(user.role as Role));
     }
   }, [user, isLoading, router, pathname, allowRoles, fallbackHref]);
 
@@ -43,5 +52,9 @@ export function ProtectedAppLayout({
     return <AppShellSkeleton />;
   }
 
-  return <AppShell title={title} user={user}>{children}</AppShell>;
+  return (
+    <AppShell title={title} user={user} backHref={backHref} backLabel={backLabel}>
+      {children}
+    </AppShell>
+  );
 }

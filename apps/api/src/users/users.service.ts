@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -267,11 +268,100 @@ export class UsersService {
   }
 
   async findAll() {
+    const now = new Date();
     return this.prisma.user.findMany({
-      where: { isActive: true },
-      select: { id: true, fullName: true, email: true, role: true },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        memberships: {
+          where: { OR: [{ activeUntil: null }, { activeUntil: { gt: now } }] },
+          select: {
+            clubId: true,
+            title: true,
+            isPresident: true,
+            club: { select: { id: true, name: true, code: true } },
+          },
+        },
+      },
       orderBy: { fullName: 'asc' },
     });
+  }
+
+  async updateUser(
+    id: string,
+    data: { fullName?: string; email?: string; role?: Role; isActive?: boolean },
+  ) {
+    if (data.role === Role.PRESIDENT) {
+      throw new BadRequestException('El rol PRESIDENT es virtual y no se puede asignar directamente');
+    }
+    const update: typeof data = {};
+    if (data.fullName !== undefined) update.fullName = data.fullName.trim();
+    if (data.isActive !== undefined) update.isActive = data.isActive;
+    if (data.role !== undefined) update.role = data.role;
+    if (data.email !== undefined) {
+      const email = data.email.trim().toLowerCase();
+      const existing = await this.prisma.user.findFirst({
+        where: { email, id: { not: id } },
+      });
+      if (existing) throw new ConflictException('Ya existe un usuario con ese email');
+      update.email = email;
+    }
+    return this.prisma.user.update({
+      where: { id },
+      data: update,
+      select: { id: true, fullName: true, email: true, role: true, isActive: true },
+    });
+  }
+
+  async adminResetPassword(targetUserId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+
+    await this.prisma.passwordResetToken.updateMany({
+      where: { userId: targetUserId, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = await bcrypt.hash(rawToken, 10);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await this.prisma.passwordResetToken.create({
+      data: { userId: targetUserId, tokenHash, expiresAt },
+    });
+
+    await this.emailService.sendPasswordResetEmail(user.email, rawToken);
+    return { message: 'Email de restablecimiento enviado' };
+  }
+
+  async addMembership(userId: string, clubId: string, title?: string) {
+    const existing = await this.prisma.membership.findUnique({
+      where: { userId_clubId: { userId, clubId } },
+    });
+    if (existing) {
+      return this.prisma.membership.update({
+        where: { userId_clubId: { userId, clubId } },
+        data: { activeUntil: null, title: title ?? existing.title },
+        select: { clubId: true, title: true, isPresident: true, club: { select: { id: true, name: true, code: true } } },
+      });
+    }
+    return this.prisma.membership.create({
+      data: { userId, clubId, title },
+      select: { clubId: true, title: true, isPresident: true, club: { select: { id: true, name: true, code: true } } },
+    });
+  }
+
+  async removeMembership(userId: string, clubId: string) {
+    await this.prisma.membership.updateMany({
+      where: { userId, clubId },
+      data: { activeUntil: new Date() },
+    });
+    return { message: 'Membresía desactivada' };
   }
 
   async updateMe(

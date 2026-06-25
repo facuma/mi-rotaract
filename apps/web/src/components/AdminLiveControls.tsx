@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { votingApi, timersApi, topicsApi, queueApi, meetingsApi } from '@/lib/api';
 import { VoteReadyModal } from '@/components/meetings/VoteReadyModal';
+import { VoteResultSummary } from '@/components/VoteResultSummary';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -25,15 +26,27 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import type { VoteResult, CandidateResult } from '@/hooks/useMeetingRoom';
 
 type Topic = { id: string; title: string; type?: string };
 type Speaker = { id: string; fullName: string };
+
+type ActiveVoteSession = {
+  id: string;
+  topicTitle: string;
+  ballotType?: 'YES_NO' | 'CANDIDATE';
+  isElection?: boolean;
+  round?: number;
+  candidates?: { id: string; displayName: string }[];
+  votingMethod?: string;
+  eligibleClubCount?: number | null;
+};
 
 type AdminLiveControlsProps = {
   meetingId: string;
   topics: Topic[];
   currentTopicId: string | null;
-  activeVoteSession: { id: string; topicTitle: string } | null;
+  activeVoteSession: ActiveVoteSession | null;
   activeTimer: { id: string; topicId?: string } | null;
   currentTopic: Topic | null;
   currentSpeaker?: Speaker | null;
@@ -41,6 +54,7 @@ type AdminLiveControlsProps = {
   clubsPresent?: number;
   clubAttendance?: { clubId: string; clubName: string; connected: boolean }[];
   attendanceLocked?: boolean;
+  voteResult?: VoteResult | null;
   onVoteOpened?: () => void;
   onVoteClosed?: () => void;
   onTopicChanged?: () => void;
@@ -66,6 +80,7 @@ export function AdminLiveControls({
   clubsPresent,
   clubAttendance = [],
   attendanceLocked = false,
+  voteResult,
   onVoteOpened,
   onVoteClosed,
   onTopicChanged,
@@ -76,12 +91,17 @@ export function AdminLiveControls({
   const [confirmCloseVote, setConfirmCloseVote] = useState(false);
   const [votingMethod, setVotingMethod] = useState('PUBLIC');
   const [requiredMajority, setRequiredMajority] = useState('SIMPLE');
+  const [ballotType, setBallotType] = useState<'YES_NO' | 'CANDIDATE'>('YES_NO');
+  const [candidates, setCandidates] = useState<string[]>(['', '']);
   const [showVoteReadyModal, setShowVoteReadyModal] = useState(false);
   const [pendingVoteTopicId, setPendingVoteTopicId] = useState<string | null>(null);
   const [lockingAttendance, setLockingAttendance] = useState(false);
   const [timerDuration, setTimerDuration] = useState('300');
   const [startingTimer, setStartingTimer] = useState(false);
   const [stoppingTimer, setStoppingTimer] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [rdrChoice, setRdrChoice] = useState<'YES' | 'NO' | null>(null);
+  const [rdrCandidateId, setRdrCandidateId] = useState<string | null>(null);
 
   async function handleLockAttendance() {
     setLockingAttendance(true);
@@ -96,6 +116,13 @@ export function AdminLiveControls({
   }
 
   function handleOpenVoteClick(topicId: string) {
+    if (ballotType === 'CANDIDATE') {
+      const valid = candidates.filter((c) => c.trim());
+      if (valid.length < 1) {
+        toast.error('Ingresá al menos un candidato.');
+        return;
+      }
+    }
     const disconnected = clubAttendance.filter((c) => !c.connected);
     if (disconnected.length > 0 && clubAttendance.length > 0) {
       setPendingVoteTopicId(topicId);
@@ -115,11 +142,17 @@ export function AdminLiveControls({
   }, [pendingVoteTopicId]);
 
   async function openVote(topicId: string) {
+    const opts: Parameters<typeof votingApi.open>[2] = {
+      votingMethod: votingMethod as 'PUBLIC' | 'SECRET',
+      requiredMajority,
+      ballotType,
+    };
+    if (ballotType === 'CANDIDATE') {
+      opts.candidates = candidates.filter((c) => c.trim()).map((displayName) => ({ displayName }));
+      opts.isElection = true;
+    }
     try {
-      await votingApi.open(meetingId, topicId, {
-        votingMethod: votingMethod as 'PUBLIC' | 'SECRET',
-        requiredMajority: requiredMajority as string,
-      });
+      await votingApi.open(meetingId, topicId, opts);
       setShowVoteReadyModal(false);
       setPendingVoteTopicId(null);
       toast.success('Votación abierta.');
@@ -140,6 +173,47 @@ export function AdminLiveControls({
       toast.error(e instanceof Error ? e.message : 'Error');
     } finally {
       setClosing(false);
+    }
+  }
+
+  async function handleOpenRunoff(previousSessionId: string) {
+    setActionLoading(true);
+    try {
+      await votingApi.openRunoff(meetingId, previousSessionId);
+      toast.success('Segunda vuelta abierta (Art. 64i).');
+      onVoteOpened?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleRdrTiebreaker(voteSessionId: string) {
+    if (!rdrChoice) { toast.error('Seleccioná una opción de desempate.'); return; }
+    setActionLoading(true);
+    try {
+      await votingApi.rdrTiebreaker(meetingId, voteSessionId, rdrChoice);
+      toast.success('Desempate del RDR aplicado (Art. 49).');
+      setRdrChoice(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleRdrCandidateTiebreaker(voteSessionId: string) {
+    if (!rdrCandidateId) { toast.error('Seleccioná el candidato ganador.'); return; }
+    setActionLoading(true);
+    try {
+      await votingApi.rdrCandidateTiebreaker(meetingId, voteSessionId, rdrCandidateId);
+      toast.success('Desempate del RDR aplicado (Art. 49).');
+      setRdrCandidateId(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setActionLoading(false);
     }
   }
 
@@ -199,6 +273,12 @@ export function AdminLiveControls({
     }
   }
 
+  const tiedCandidates: CandidateResult[] = voteResult?.candidateResult
+    ? voteResult.candidateResult.candidateResults.filter(
+        (c) => c.votes === voteResult.candidateResult!.candidateResults[0]?.votes && c.votes > 0,
+      )
+    : [];
+
   return (
     <div className={cn('space-y-5', className)}>
       {/* Attendance section */}
@@ -236,10 +316,7 @@ export function AdminLiveControls({
                       : 'border border-border bg-muted/30 text-muted-foreground',
                   )}
                 >
-                  <span className={cn(
-                    'size-1.5 rounded-full',
-                    c.connected ? 'bg-success animate-pulse' : 'bg-muted-foreground/50',
-                  )} />
+                  <span className={cn('size-1.5 rounded-full', c.connected ? 'bg-success animate-pulse' : 'bg-muted-foreground/50')} />
                   {c.clubName}
                 </span>
               ))}
@@ -260,9 +337,7 @@ export function AdminLiveControls({
           <SelectContent>
             <SelectItem value="__none__">— Sin tema —</SelectItem>
             {topics.map((t) => (
-              <SelectItem key={t.id} value={t.id}>
-                {t.title}
-              </SelectItem>
+              <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -278,29 +353,20 @@ export function AdminLiveControls({
                 <span className="text-sm font-medium">{currentSpeaker.fullName}</span>
                 <Badge variant="default" className="text-xs">Hablando</Badge>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleSetCurrentSpeaker(null)}
-              >
+              <Button variant="ghost" size="sm" onClick={() => handleSetCurrentSpeaker(null)}>
                 Quitar
               </Button>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">Sin orador actual.</p>
           )}
-
           {nextSpeaker && (
             <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
               <div className="flex items-center gap-2">
                 <span className="text-sm">{nextSpeaker.fullName}</span>
                 <Badge variant="secondary" className="text-xs">Siguiente</Badge>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={promoteNextSpeaker}
-              >
+              <Button variant="outline" size="sm" onClick={promoteNextSpeaker}>
                 Dar palabra
               </Button>
             </div>
@@ -309,55 +375,252 @@ export function AdminLiveControls({
       </FormSection>
 
       {/* Voting section */}
-      <FormSection title="Votación" description="Abrí o cerrá votaciones en el tema actual (Art. 44-50).">
+      <FormSection title="Votación" description="Abrí o cerrá votaciones (Art. 44-50).">
         {activeVoteSession ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="info">Abierta</Badge>
-            <span className="text-sm flex-1">{activeVoteSession.topicTitle}</span>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setConfirmCloseVote(true)}
-            >
-              Cerrar votación
-            </Button>
-          </div>
-        ) : currentTopic ? (
           <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <Select value={votingMethod} onValueChange={setVotingMethod}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PUBLIC">Pública</SelectItem>
-                  <SelectItem value="SECRET">Secreta</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={requiredMajority} onValueChange={setRequiredMajority}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="SIMPLE">Mayoría Simple</SelectItem>
-                  <SelectItem value="TWO_THIRDS">Dos Tercios</SelectItem>
-                  <SelectItem value="THREE_QUARTERS">Tres Cuartos</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="info">
+                {activeVoteSession.ballotType === 'CANDIDATE' ? 'Elección' : 'Votación'} abierta
+                {(activeVoteSession.round ?? 1) > 1 ? ` — Ronda ${activeVoteSession.round}` : ''}
+              </Badge>
+              <span className="text-sm flex-1 truncate">{activeVoteSession.topicTitle}</span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setConfirmCloseVote(true)}
+              >
+                Cerrar votación
+              </Button>
             </div>
-            {clubsPresent !== undefined && clubsPresent > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {clubsPresent} papeleta{clubsPresent === 1 ? '' : 's'} (clubes presentes)
-              </p>
+            {activeVoteSession.ballotType === 'CANDIDATE' && (activeVoteSession.candidates?.length ?? 0) > 0 && (
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                <p className="font-medium">Candidatos:</p>
+                {activeVoteSession.candidates!.map((c, i) => (
+                  <p key={c.id}>{String.fromCharCode(65 + i)}. {c.displayName}</p>
+                ))}
+              </div>
             )}
-            <Button
-              onClick={() => handleOpenVoteClick(currentTopic.id)}
-            >
-              Abrir votación: {currentTopic.title}
-            </Button>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Seleccioná un tema primero.</p>
+          <>
+            {/* Post-close result + actions */}
+            {voteResult && (
+              <div className="space-y-3 mb-4">
+                <VoteResultSummary
+                  yes={voteResult.yes}
+                  no={voteResult.no}
+                  abstain={voteResult.abstain}
+                  total={voteResult.total}
+                  approved={voteResult.approved}
+                  isTied={voteResult.isTied}
+                  requiredMajority={voteResult.requiredMajority}
+                  ballotType={voteResult.ballotType}
+                  round={voteResult.round}
+                  candidateResult={voteResult.candidateResult}
+                  rdrTiebreakerUsed={voteResult.rdrTiebreakerUsed}
+                />
+
+                {/* RDR Tiebreaker — YES/NO vote */}
+                {voteResult.isTied && voteResult.ballotType !== 'CANDIDATE' && !voteResult.rdrTiebreakerUsed && (
+                  <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-warning-foreground">Desempate RDR (Art. 49)</p>
+                    <p className="text-xs text-muted-foreground">El RDR tiene voto de calidad en caso de empate.</p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant={rdrChoice === 'YES' ? 'default' : 'outline'}
+                        onClick={() => setRdrChoice('YES')}
+                        className={rdrChoice === 'YES' ? 'border-success bg-success hover:bg-success/90' : ''}
+                      >
+                        A favor
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={rdrChoice === 'NO' ? 'default' : 'outline'}
+                        onClick={() => setRdrChoice('NO')}
+                        className={rdrChoice === 'NO' ? 'border-destructive bg-destructive hover:bg-destructive/90' : ''}
+                      >
+                        En contra
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={!rdrChoice || actionLoading}
+                        onClick={() => handleRdrTiebreaker(voteResult.voteSessionId)}
+                      >
+                        Aplicar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* RDR Tiebreaker — Candidate vote */}
+                {voteResult.candidateResult?.isTied && !voteResult.rdrTiebreakerUsed && (
+                  <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-warning-foreground">Desempate RDR — Candidatos (Art. 49)</p>
+                    <p className="text-xs text-muted-foreground">Empate entre candidatos. El RDR elige el ganador.</p>
+                    <div className="space-y-1">
+                      {tiedCandidates.map((c) => (
+                        <button
+                          key={c.candidateId}
+                          onClick={() => setRdrCandidateId(c.candidateId)}
+                          className={cn(
+                            'w-full text-left rounded px-3 py-2 text-sm border transition-colors',
+                            rdrCandidateId === c.candidateId
+                              ? 'border-primary bg-primary/10 font-semibold'
+                              : 'border-border bg-background hover:bg-muted',
+                          )}
+                        >
+                          {c.displayName} ({c.votes} votos)
+                        </button>
+                      ))}
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={!rdrCandidateId || actionLoading}
+                      onClick={() => handleRdrCandidateTiebreaker(voteResult.voteSessionId)}
+                    >
+                      Confirmar ganador
+                    </Button>
+                  </div>
+                )}
+
+                {/* Open runoff */}
+                {voteResult.candidateResult?.needsRunoff && !voteResult.candidateResult?.winner && (
+                  <div className="rounded-lg border border-info/40 bg-info/10 p-3 space-y-2">
+                    <p className="text-xs font-semibold">Segunda vuelta requerida (Art. 64i)</p>
+                    <p className="text-xs text-muted-foreground">
+                      Ningún candidato obtuvo la mayoría requerida. Se realizará una segunda vuelta entre los dos más votados.
+                    </p>
+                    <Button
+                      size="sm"
+                      disabled={actionLoading}
+                      onClick={() => handleOpenRunoff(voteResult.voteSessionId)}
+                    >
+                      {actionLoading ? 'Abriendo...' : 'Abrir segunda vuelta'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Open new vote */}
+            {currentTopic ? (
+              <div className="space-y-3">
+                {/* Ballot type */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBallotType('YES_NO')}
+                    className={cn(
+                      'flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+                      ballotType === 'YES_NO' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background hover:bg-muted',
+                    )}
+                  >
+                    Sí / No
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setBallotType('CANDIDATE'); setRequiredMajority('ABSOLUTE'); }}
+                    className={cn(
+                      'flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+                      ballotType === 'CANDIDATE' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background hover:bg-muted',
+                    )}
+                  >
+                    Elección candidatos
+                  </button>
+                </div>
+
+                {/* Candidate inputs */}
+                {ballotType === 'CANDIDATE' && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Candidatos</Label>
+                    {candidates.map((name, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs w-5 font-medium text-muted-foreground">
+                          {String.fromCharCode(65 + i)}.
+                        </span>
+                        <Input
+                          placeholder={`Candidato ${String.fromCharCode(65 + i)}`}
+                          value={name}
+                          onChange={(e) => {
+                            const next = [...candidates];
+                            next[i] = e.target.value;
+                            setCandidates(next);
+                          }}
+                          className="h-8 text-sm"
+                        />
+                        {candidates.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setCandidates(candidates.filter((_, j) => j !== i))}
+                            className="text-muted-foreground hover:text-destructive text-xs px-1"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-7 text-xs"
+                      onClick={() => setCandidates([...candidates, ''])}
+                    >
+                      + Agregar candidato
+                    </Button>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  <Select value={votingMethod} onValueChange={setVotingMethod}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PUBLIC">Pública</SelectItem>
+                      <SelectItem value="SECRET">Secreta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {ballotType === 'YES_NO' && (
+                    <Select value={requiredMajority} onValueChange={setRequiredMajority}>
+                      <SelectTrigger className="w-44">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="SIMPLE">Mayoría Simple</SelectItem>
+                        <SelectItem value="ABSOLUTE">Mayoría Absoluta</SelectItem>
+                        <SelectItem value="TWO_THIRDS">Dos Tercios</SelectItem>
+                        <SelectItem value="THREE_QUARTERS">Tres Cuartos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {ballotType === 'CANDIDATE' && (
+                    <Select value={requiredMajority} onValueChange={setRequiredMajority}>
+                      <SelectTrigger className="w-44">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ABSOLUTE">Mayoría Absoluta (Art. 64)</SelectItem>
+                        <SelectItem value="TWO_THIRDS">Dos Tercios (Art. 65-66)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                {clubsPresent !== undefined && clubsPresent > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {clubsPresent} papeleta{clubsPresent === 1 ? '' : 's'} (clubes presentes)
+                  </p>
+                )}
+
+                <Button onClick={() => handleOpenVoteClick(currentTopic.id)} className="w-full">
+                  {ballotType === 'CANDIDATE' ? 'Abrir elección' : 'Abrir votación'}: {currentTopic.title}
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Seleccioná un tema primero.</p>
+            )}
+          </>
         )}
       </FormSection>
 
@@ -398,10 +661,7 @@ export function AdminLiveControls({
                   className="w-24"
                 />
               </div>
-              <Button
-                disabled={startingTimer}
-                onClick={() => startTimer(currentTopic.id)}
-              >
+              <Button disabled={startingTimer} onClick={() => startTimer(currentTopic.id)}>
                 {startingTimer ? 'Iniciando...' : 'Iniciar timer'}
               </Button>
             </div>
@@ -421,10 +681,7 @@ export function AdminLiveControls({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setConfirmCloseVote(false)}
-            >
+            <Button variant="outline" onClick={() => setConfirmCloseVote(false)}>
               Cancelar
             </Button>
             <Button
@@ -445,9 +702,7 @@ export function AdminLiveControls({
         clubAttendance={clubAttendance}
         topicTitle={currentTopic?.title ?? ''}
         onContinue={() => {
-          if (pendingVoteTopicId) {
-            openVote(pendingVoteTopicId);
-          }
+          if (pendingVoteTopicId) openVote(pendingVoteTopicId);
         }}
         onAllPresent={handleAllPresent}
       />

@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { CartaPoderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateCartaPoderDto } from './dto/create-carta-poder.dto';
@@ -13,6 +14,27 @@ export class CartaPoderService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
   ) {}
+
+  private async enrichCartaPoder(cp: {
+    id: string;
+    meetingId: string;
+    clubId: string;
+    presidentUserId: string;
+    delegateUserId: string;
+    status: CartaPoderStatus;
+    verified: boolean;
+    verifiedById: string | null;
+    documentUrl: string | null;
+    rejectionReason: string | null;
+    receivedAt: Date;
+  }) {
+    const [club, delegateUser, presidentUser] = await Promise.all([
+      this.prisma.club.findUnique({ where: { id: cp.clubId }, select: { id: true, name: true } }),
+      this.prisma.user.findUnique({ where: { id: cp.delegateUserId }, select: { id: true, fullName: true, email: true } }),
+      this.prisma.user.findUnique({ where: { id: cp.presidentUserId }, select: { id: true, fullName: true, email: true } }),
+    ]);
+    return { ...cp, club, delegateUser, presidentUser };
+  }
 
   /**
    * Art. 46: Create a carta poder for a club's delegate at a meeting.
@@ -39,6 +61,10 @@ export class CartaPoderService {
       }
     }
 
+    // Validate delegate user exists
+    const delegate = await this.prisma.user.findUnique({ where: { id: dto.delegateUserId } });
+    if (!delegate) throw new NotFoundException('Usuario delegado no encontrado');
+
     // One carta poder per club per meeting
     const existing = await this.prisma.cartaPoder.findUnique({
       where: { meetingId_clubId: { meetingId, clubId: dto.clubId } },
@@ -54,6 +80,7 @@ export class CartaPoderService {
         presidentUserId,
         delegateUserId: dto.delegateUserId,
         documentUrl: dto.documentUrl ?? null,
+        status: CartaPoderStatus.PENDING_SECRETARY,
       },
     });
 
@@ -65,7 +92,7 @@ export class CartaPoderService {
       entityId: cartaPoder.id,
     });
 
-    return cartaPoder;
+    return this.enrichCartaPoder(cartaPoder);
   }
 
   async verify(meetingId: string, cartaPoderId: string, verifiedById: string) {
@@ -73,10 +100,13 @@ export class CartaPoderService {
       where: { id: cartaPoderId, meetingId },
     });
     if (!cp) throw new NotFoundException('Carta poder no encontrada');
+    if (cp.status === CartaPoderStatus.REJECTED) {
+      throw new BadRequestException('La carta poder fue rechazada y no puede verificarse');
+    }
 
     const updated = await this.prisma.cartaPoder.update({
       where: { id: cartaPoderId },
-      data: { verified: true, verifiedById },
+      data: { verified: true, verifiedById, status: CartaPoderStatus.VERIFIED, rejectionReason: null },
     });
 
     // Auto-add delegate as meeting participant with canVote and isDelegate
@@ -104,16 +134,53 @@ export class CartaPoderService {
       entityId: cartaPoderId,
     });
 
-    return updated;
+    return this.enrichCartaPoder(updated);
+  }
+
+  async reject(meetingId: string, cartaPoderId: string, rejectorId: string, reason?: string) {
+    const cp = await this.prisma.cartaPoder.findFirst({
+      where: { id: cartaPoderId, meetingId },
+    });
+    if (!cp) throw new NotFoundException('Carta poder no encontrada');
+    if (cp.status === CartaPoderStatus.VERIFIED) {
+      throw new BadRequestException('La carta poder ya fue verificada');
+    }
+
+    const updated = await this.prisma.cartaPoder.update({
+      where: { id: cartaPoderId },
+      data: {
+        status: CartaPoderStatus.REJECTED,
+        verified: false,
+        rejectionReason: reason ?? null,
+      },
+    });
+
+    await this.audit.log({
+      meetingId,
+      actorUserId: rejectorId,
+      action: 'carta_poder.rejected',
+      entityType: 'CartaPoder',
+      entityId: cartaPoderId,
+      metadata: { reason },
+    });
+
+    return this.enrichCartaPoder(updated);
   }
 
   async findByMeeting(meetingId: string) {
-    return this.prisma.cartaPoder.findMany({
+    const list = await this.prisma.cartaPoder.findMany({
       where: { meetingId },
-      include: {
-        club: { select: { id: true, name: true } },
-      },
+      orderBy: { receivedAt: 'desc' },
     });
+    return Promise.all(list.map((cp) => this.enrichCartaPoder(cp)));
+  }
+
+  async findByMeetingAndClub(meetingId: string, clubId: string) {
+    const list = await this.prisma.cartaPoder.findMany({
+      where: { meetingId, clubId },
+      orderBy: { receivedAt: 'desc' },
+    });
+    return Promise.all(list.map((cp) => this.enrichCartaPoder(cp)));
   }
 
   async remove(meetingId: string, cartaPoderId: string, actorUserId: string) {

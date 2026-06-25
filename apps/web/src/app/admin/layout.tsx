@@ -1,8 +1,7 @@
 'use client';
 
 import { ProtectedAppLayout } from '@/components/auth/ProtectedAppLayout';
-
-const ADMIN_ROLES = ['SECRETARY', 'PRESIDENT', 'RDR', 'SUPERADMIN'];
+import { ADMIN_ROLES } from '@/lib/permissions';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (

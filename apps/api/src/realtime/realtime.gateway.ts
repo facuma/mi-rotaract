@@ -243,15 +243,15 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('vote.submit')
   async handleVoteSubmit(
     client: SocketWithData,
-    payload: { meetingId: string; voteSessionId: string; choice: VoteChoice },
+    payload: { meetingId: string; voteSessionId: string; choice: VoteChoice; candidateId?: string },
   ) {
     const userId = client.data?.userId;
     if (!userId) {
       return { event: 'error', data: { message: 'No autenticado' } };
     }
-    const { meetingId, voteSessionId, choice } = payload;
-    if (!meetingId || !voteSessionId || !choice) {
-      return { event: 'error', data: { message: 'meetingId, voteSessionId y choice requeridos' } };
+    const { meetingId, voteSessionId, choice, candidateId } = payload;
+    if (!meetingId || !voteSessionId) {
+      return { event: 'error', data: { message: 'meetingId y voteSessionId requeridos' } };
     }
     const room = MEETING_ROOM_PREFIX + meetingId;
     const inRoom = Array.isArray(client.rooms) ? client.rooms.includes(room) : client.rooms?.has?.(room);
@@ -259,7 +259,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       return { event: 'error', data: { message: 'No estás en esta reunión' } };
     }
     try {
-      const result = await this.votingService.submitVote(meetingId, voteSessionId, userId, choice);
+      const result = await this.votingService.submitVote(meetingId, voteSessionId, userId, choice, candidateId);
       return { event: 'vote.confirmed', data: result };
     } catch (err: unknown) {
       const message = err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Error al registrar el voto';
@@ -281,7 +281,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       where: { id: meetingId },
       include: {
         topics: { orderBy: { order: 'asc' } },
-        voteSessions: { where: { status: 'OPEN' }, include: { topic: true } },
+        voteSessions: {
+          where: { status: 'OPEN' },
+          include: { topic: true, candidates: { orderBy: { order: 'asc' } } },
+        },
         participants: { include: { user: { select: { id: true, fullName: true } } } },
         clubAttendances: { include: { club: { select: { id: true, name: true } } } },
         speakingRequests: {
@@ -413,6 +416,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
             votingMethod: openVoteSession.votingMethod,
             requiredMajority: openVoteSession.requiredMajority,
             eligibleClubCount: openVoteSession.eligibleClubCount,
+            ballotType: openVoteSession.ballotType,
+            isElection: openVoteSession.isElection,
+            round: openVoteSession.round,
+            candidates: openVoteSession.candidates.map((c) => ({
+              id: c.id,
+              displayName: c.displayName,
+              userId: c.userId,
+            })),
           }
         : null,
       ownVote,
