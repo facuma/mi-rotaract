@@ -1,0 +1,66 @@
+# Production compose — lives at /home/facu/apps/mi-rotaract-app/ on the VPS.
+# The CI workflow (deploy-api.yml) pulls a pre-built image from GHCR;
+# this file is NOT used for local development (use docker-compose.yml instead).
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: mi-rotaract-db
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      POSTGRES_USER: rotaract
+      POSTGRES_DB: mi_rotaract
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rotaract -d mi_rotaract"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: mi-rotaract-redis
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  api:
+    image: ghcr.io/facuma/mi-rotaract-api:latest
+    container_name: mi-rotaract-api
+    restart: unless-stopped
+    env_file: .env.production
+    ports:
+      - "127.0.0.1:8091:8091"
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8091/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  pgdata:
+    external: true
+    name: mi-rotaract_pgdata
+  uploads:
+    external: true
+    name: mi-rotaract_uploads
+  redisdata:
