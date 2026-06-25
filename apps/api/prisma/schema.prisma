@@ -14,12 +14,14 @@ datasource db {
 ///    Un CHECK constraint en User.role (ver migración 20260417100000) impide
 ///    que se persista. Sólo vive en el claim del JWT.
 enum Role {
-  USER
-  DISTRICT_SECRETARY
+  PARTICIPANT        @map("USER")
+  SECRETARY          @map("DISTRICT_SECRETARY")
   PRESIDENT
-  DISTRICT_RDR
+  RDR                @map("DISTRICT_RDR")
   COMPANY
   SUPERADMIN
+
+  @@map("Role")
 }
 
 enum ClubRole {
