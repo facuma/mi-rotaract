@@ -256,6 +256,17 @@ export class VotingService {
       throw new ForbiddenException('No se pueden emitir votos sin quórum (Art. 42).');
     }
 
+    // Art. 49: RDR votes only on tie. Block regular vote submissions.
+    const voterUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (voterUser?.role === 'RDR') {
+      throw new ForbiddenException(
+        'El RDR no puede votar en votaciones ordinarias, solo en desempates (Art. 49).',
+      );
+    }
+
     // For candidate votes, validate candidateId
     if (session.ballotType === BallotType.CANDIDATE) {
       if (!candidateId) throw new BadRequestException('Debe seleccionar un candidato');
