@@ -413,11 +413,50 @@ export class VotingService {
     let isDelegate = !!delegation;
 
     if (!representativeUserId) {
-      const membership = await this.prisma.membership.findFirst({
-        where: { clubId, isPresident: true },
-        select: { userId: true },
+      const meeting = await this.prisma.meeting.findUnique({
+        where: { id: meetingId },
+        select: { scheduledAt: true },
       });
-      representativeUserId = membership?.userId ?? null;
+      const meetingDate = meeting?.scheduledAt || new Date();
+      const meetingPeriod = await this.prisma.districtPeriod.findFirst({
+        where: {
+          startDate: { lte: meetingDate },
+          endDate: { gte: meetingDate },
+        },
+      });
+      const currentPeriod = await this.prisma.districtPeriod.findFirst({
+        where: { isCurrent: true },
+      });
+      const periodIds = [meetingPeriod?.id, currentPeriod?.id].filter((id): id is string => !!id);
+      const nextPeriod = await this.prisma.districtPeriod.findFirst({
+        where: {
+          startDate: { gt: currentPeriod?.endDate || new Date() },
+        },
+        orderBy: { startDate: 'asc' },
+      });
+      if (nextPeriod) periodIds.push(nextPeriod.id);
+      const uniquePeriodIds = Array.from(new Set(periodIds));
+
+      const presidency = await this.prisma.clubPresidency.findFirst({
+        where: {
+          clubId,
+          periodId: { in: uniquePeriodIds },
+          status: { in: ['ACTIVE', 'ELECTED'] },
+        },
+        include: { member: true },
+      });
+
+      if (presidency?.member?.userId) {
+        representativeUserId = presidency.member.userId;
+      }
+
+      if (!representativeUserId) {
+        const membership = await this.prisma.membership.findFirst({
+          where: { clubId, isPresident: true },
+          select: { userId: true },
+        });
+        representativeUserId = membership?.userId ?? null;
+      }
     }
 
     if (!representativeUserId) {

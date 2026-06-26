@@ -133,7 +133,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
     const meeting = await this.prisma.meeting.findUnique({
       where: { id: meetingId },
-      select: { id: true, isDistrictMeeting: true, attendanceLocked: true },
+      select: { id: true, isDistrictMeeting: true, attendanceLocked: true, scheduledAt: true },
     });
     if (!meeting) {
       return { event: 'error', data: { message: 'Reunión no encontrada' } };
@@ -159,8 +159,47 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
           where: { userId },
           select: { clubId: true, isPresident: true },
         });
-        const isPresidentOfClub = membership?.isPresident ?? false;
+        let isPresidentOfClub = membership?.isPresident ?? false;
         const userClubId = membership?.clubId ?? null;
+
+        if (!isPresidentOfClub && userClubId) {
+          const member = await this.prisma.member.findFirst({
+            where: { userId, clubId: userClubId, deletedAt: null },
+          });
+          if (member) {
+            const meetingDate = meeting.scheduledAt || new Date();
+            const meetingPeriod = await this.prisma.districtPeriod.findFirst({
+              where: {
+                startDate: { lte: meetingDate },
+                endDate: { gte: meetingDate },
+              },
+            });
+            const currentPeriod = await this.prisma.districtPeriod.findFirst({
+              where: { isCurrent: true },
+            });
+            const periodIds = [meetingPeriod?.id, currentPeriod?.id].filter((id): id is string => !!id);
+            const nextPeriod = await this.prisma.districtPeriod.findFirst({
+              where: {
+                startDate: { gt: currentPeriod?.endDate || new Date() },
+              },
+              orderBy: { startDate: 'asc' },
+            });
+            if (nextPeriod) periodIds.push(nextPeriod.id);
+            const uniquePeriodIds = Array.from(new Set(periodIds));
+
+            const presidency = await this.prisma.clubPresidency.findFirst({
+              where: {
+                clubId: userClubId,
+                memberId: member.id,
+                periodId: { in: uniquePeriodIds },
+                status: { in: ['ACTIVE', 'ELECTED'] },
+              },
+            });
+            if (presidency) {
+              isPresidentOfClub = true;
+            }
+          }
+        }
 
         const delegationForClub = userClubId
           ? await this.prisma.cartaPoder.findFirst({
