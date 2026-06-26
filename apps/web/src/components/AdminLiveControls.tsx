@@ -325,6 +325,20 @@ export function AdminLiveControls({
       )
     : [];
 
+  const currentTopicIndex = topics.findIndex((t) => t.id === currentTopicId);
+  let previousNormalTopic: Topic | null = null;
+  if (currentTopicIndex > -1) {
+    for (let i = currentTopicIndex - 1; i >= 0; i--) {
+      const t = topics[i];
+      if (t.type !== 'VOTING' && !t.title?.startsWith('Moción:')) {
+        previousNormalTopic = t;
+        break;
+      }
+    }
+  }
+  const currentTopicIsMotion = currentTopic?.type === 'VOTING' || currentTopic?.title?.startsWith('Moción:');
+  const showReturnButton = !!(currentTopicIsMotion && previousNormalTopic);
+
   return (
     <div className={cn('space-y-5', className)}>
       {/* Attendance section */}
@@ -618,6 +632,19 @@ export function AdminLiveControls({
           </div>
         ) : (
           <>
+            {showReturnButton && (
+              <div className="mb-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentTopic(previousNormalTopic!.id)}
+                  className="w-full flex items-center justify-center gap-1.5 border-dashed border-primary text-primary hover:bg-primary/5 font-medium"
+                >
+                  ↩ Volver a tema: {previousNormalTopic!.title}
+                </Button>
+              </div>
+            )}
+
             {/* Post-close result + actions */}
             {voteResult && (
               <div className="space-y-3 mb-4">
