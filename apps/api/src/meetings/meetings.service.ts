@@ -443,8 +443,10 @@ export class MeetingsService {
     // Art. 41-42: Check quorum on start for district meetings
     let quorumMet = true;
     let isInformationalOnly = false;
+    let quorumRequired = meeting.quorumRequired;
     if (meeting.isDistrictMeeting) {
       const quorumStatus = await this.quorum.checkQuorum(id);
+      quorumRequired = quorumStatus.required;
       quorumMet = quorumStatus.met;
       isInformationalOnly = !quorumMet; // Art. 42: no quorum = informational only
     }
@@ -454,6 +456,7 @@ export class MeetingsService {
       data: {
         status: MeetingStatus.LIVE,
         startedAt: new Date(),
+        quorumRequired,
         quorumMet,
         isInformationalOnly,
       },
@@ -544,10 +547,26 @@ export class MeetingsService {
   async lockAttendance(id: string, actorUserId: string) {
     const meeting = await this.prisma.meeting.findUnique({ where: { id } });
     if (!meeting) throw new NotFoundException('Reunión no encontrada');
-    if (meeting.attendanceLocked) throw new BadRequestException('La asistencia ya está cerrada');
+    // Recalculate quorum before locking
+    let quorumRequired = meeting.quorumRequired;
+    let quorumMet = meeting.quorumMet;
+    let isInformationalOnly = meeting.isInformationalOnly;
+    if (meeting.isDistrictMeeting) {
+      const quorumStatus = await this.quorum.checkQuorum(id);
+      quorumRequired = quorumStatus.required;
+      quorumMet = quorumStatus.met;
+      isInformationalOnly = !quorumMet;
+    }
+
     const updated = await this.prisma.meeting.update({
       where: { id },
-      data: { attendanceLocked: true, attendanceLockedAt: new Date() },
+      data: {
+        attendanceLocked: true,
+        attendanceLockedAt: new Date(),
+        quorumRequired,
+        quorumMet,
+        isInformationalOnly,
+      },
       include: { club: true },
     });
     await this.audit.log({

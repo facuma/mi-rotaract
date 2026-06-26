@@ -30,10 +30,13 @@ export class QuorumService {
   async checkQuorum(meetingId: string): Promise<QuorumStatus> {
     const meeting = await this.prisma.meeting.findUnique({
       where: { id: meetingId },
-      select: { quorumRequired: true, isInformationalOnly: true },
+      select: { isDistrictMeeting: true },
     });
 
-    const required = meeting?.quorumRequired ?? await this.calculateQuorumRequirement();
+    let required = 0;
+    if (meeting?.isDistrictMeeting) {
+      required = await this.calculateQuorumRequirement();
+    }
 
     const presentClubs = await this.prisma.clubMeetingAttendance.count({
       where: {
@@ -91,6 +94,7 @@ export class QuorumService {
     await this.prisma.meeting.update({
       where: { id: meetingId },
       data: {
+        quorumRequired: status.required,
         quorumMet: status.met,
         isInformationalOnly: status.isInformationalOnly,
       },
