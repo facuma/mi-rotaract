@@ -6,7 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BallotType, MajorityType, VoteChoice, VoteSessionStatus, VotingMethod } from '@prisma/client';
+import { BallotType, MajorityType, VoteChoice, VoteSessionStatus, VotingMethod, MotionStatus } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -181,6 +181,31 @@ export class VotingService {
     if (session.status !== VoteSessionStatus.OPEN)
       throw new BadRequestException('La votación ya está cerrada');
 
+    // Enforce: cannot close vote if there are pending present clubs that haven't voted
+    if (session.eligibleClubIds) {
+      const eligible: string[] = JSON.parse(session.eligibleClubIds);
+      const votes = await this.prisma.vote.findMany({
+        where: { voteSessionId },
+        select: { userId: true },
+      });
+      const voterUserIds = votes.map((v) => v.userId);
+      const votedParticipants = await this.prisma.meetingParticipant.findMany({
+        where: {
+          meetingId,
+          userId: { in: voterUserIds },
+          clubId: { in: eligible },
+        },
+        select: { clubId: true },
+      });
+      const votedClubIds = [...new Set(votedParticipants.map((vp) => vp.clubId!).filter(Boolean))];
+      if (votedClubIds.length < eligible.length) {
+        const pendingCount = eligible.length - votedClubIds.length;
+        throw new BadRequestException(
+          `No se puede cerrar la votación hasta que todos los clubes presentes hayan votado. Faltan ${pendingCount} clubes por votar.`,
+        );
+      }
+    }
+
     const updated = await this.prisma.voteSession.update({
       where: { id: voteSessionId },
       data: { status: VoteSessionStatus.CLOSED, closedAt: new Date(), closedById: userId },
@@ -199,6 +224,22 @@ export class VotingService {
     let candidateResult: CandidateVoteResult | null = null;
     if (session.ballotType === BallotType.CANDIDATE) {
       candidateResult = await this.evaluateCandidateResult(voteSessionId);
+    }
+
+    // Update Motion status if this vote session is linked to a motion
+    const motion = await this.prisma.motion.findFirst({
+      where: { voteSessionId },
+    });
+    if (motion) {
+      const isApproved = result.ballotType === BallotType.CANDIDATE
+        ? !!candidateResult?.winner
+        : !!result.approved;
+      await this.prisma.motion.update({
+        where: { id: motion.id },
+        data: {
+          status: isApproved ? MotionStatus.APPROVED : MotionStatus.REJECTED,
+        },
+      });
     }
 
     await this.realtime.emitToMeeting(meetingId, 'meeting.vote.closed', {
@@ -286,10 +327,19 @@ export class VotingService {
       }
 
       // Check for duplicate club vote (by another user)
-      const existingClubVote = await this.prisma.vote.findFirst({
-        where: { voteSessionId, clubId },
+      const votesInSession = await this.prisma.vote.findMany({
+        where: { voteSessionId },
+        select: { userId: true },
       });
-      if (existingClubVote && existingClubVote.userId !== userId) {
+      const voterUserIds = votesInSession.map((v) => v.userId);
+      const existingClubVoter = await this.prisma.meetingParticipant.findFirst({
+        where: {
+          meetingId,
+          clubId,
+          userId: { in: voterUserIds },
+        },
+      });
+      if (existingClubVoter && existingClubVoter.userId !== userId) {
         throw new ForbiddenException('Tu club ya emitió un voto en esta votación');
       }
     }
@@ -297,10 +347,13 @@ export class VotingService {
     // For candidate votes, choice is always YES (candidateId identifies the choice)
     const effectiveChoice = session.ballotType === BallotType.CANDIDATE ? VoteChoice.YES : choice;
 
+    // For secret votes, do not record the clubId on the Vote record
+    const voteClubId = session.votingMethod === VotingMethod.SECRET ? null : clubId;
+
     const vote = await this.prisma.vote.upsert({
       where: { voteSessionId_userId: { voteSessionId, userId } },
-      create: { voteSessionId, userId, clubId, choice: effectiveChoice, candidateId: candidateId ?? null },
-      update: { choice: effectiveChoice, clubId, candidateId: candidateId ?? null },
+      create: { voteSessionId, userId, clubId: voteClubId, choice: effectiveChoice, candidateId: candidateId ?? null },
+      update: { choice: effectiveChoice, clubId: voteClubId, candidateId: candidateId ?? null },
     });
 
     await this.audit.log({
@@ -317,17 +370,36 @@ export class VotingService {
       candidateResult = await this.evaluateCandidateResult(voteSessionId);
     }
 
+    const isSecret = session.votingMethod === VotingMethod.SECRET;
+
     await this.realtime.emitToMeeting(meetingId, 'meeting.vote.result', {
       meetingId,
       voteSessionId,
       topicId: session.topicId,
       ballotType: session.ballotType,
-      counts: { yes: result.yes, no: result.no, abstain: result.abstain },
+      counts: isSecret ? null : { yes: result.yes, no: result.no, abstain: result.abstain },
       total: result.total,
-      approved: result.approved,
-      isTied: result.isTied,
-      candidateResult,
+      approved: isSecret ? null : result.approved,
+      isTied: isSecret ? null : result.isTied,
+      candidateResult: isSecret ? null : candidateResult,
     });
+
+    if (isSecret) {
+      return {
+        voteSessionId,
+        yes: 0,
+        no: 0,
+        abstain: 0,
+        total: result.total,
+        approved: null,
+        isTied: null,
+        requiredMajority: result.requiredMajority,
+        ballotType: result.ballotType,
+        round: result.round,
+        candidateResult: null,
+      };
+    }
+
     return { ...result, candidateResult };
   }
 
@@ -339,6 +411,12 @@ export class VotingService {
     choice: VoteChoice,
     candidateId?: string,
   ) {
+    const session = await this.prisma.voteSession.findFirst({ where: { id: voteSessionId, meetingId } });
+    if (!session) throw new NotFoundException('Sesión de votación no encontrada');
+    if (session.votingMethod === VotingMethod.SECRET) {
+      throw new BadRequestException('No se pueden registrar votos manuales en votaciones secretas');
+    }
+
     const actor = await this.prisma.user.findUnique({
       where: { id: actorUserId },
       select: { role: true },
@@ -690,6 +768,7 @@ export class VotingService {
     // Check for RDR tiebreaker candidate
     if (session.rdrTiebreakerUsed && session.rdrTiebreakerCandidateId) {
       const winner = candidateResults.find((c) => c.candidateId === session.rdrTiebreakerCandidateId) ?? null;
+      const isSecret = session.votingMethod === VotingMethod.SECRET;
       return {
         candidateResults,
         winner,
@@ -699,7 +778,7 @@ export class VotingService {
         totalVotes,
         eligibleCount,
         rdrTiebreakerUsed: true,
-        rdrTiebreakerCandidateId: session.rdrTiebreakerCandidateId,
+        rdrTiebreakerCandidateId: isSecret ? null : session.rdrTiebreakerCandidateId,
       };
     }
 
@@ -752,9 +831,13 @@ export class VotingService {
     const majority = session?.requiredMajority ?? MajorityType.SIMPLE;
     const rdrTiebreakerUsed = session?.rdrTiebreakerUsed ?? false;
 
+    const isSecret = session?.votingMethod === VotingMethod.SECRET;
+
     if (rdrTiebreakerUsed && session?.rdrTiebreakerChoice) {
-      if (session.rdrTiebreakerChoice === VoteChoice.YES) yes++;
-      else if (session.rdrTiebreakerChoice === VoteChoice.NO) no++;
+      if (!isSecret) {
+        if (session.rdrTiebreakerChoice === VoteChoice.YES) yes++;
+        else if (session.rdrTiebreakerChoice === VoteChoice.NO) no++;
+      }
     }
 
     const isTied = yes === no && !rdrTiebreakerUsed;
@@ -763,7 +846,9 @@ export class VotingService {
 
     const eligibleCount = session?.eligibleClubCount ?? votesForMajority;
 
-    if (!isTied && votesForMajority > 0) {
+    if (rdrTiebreakerUsed && session?.rdrTiebreakerChoice) {
+      approved = session.rdrTiebreakerChoice === VoteChoice.YES;
+    } else if (!isTied && votesForMajority > 0) {
       switch (majority) {
         case MajorityType.SIMPLE:
           approved = yes > no;

@@ -189,6 +189,8 @@ model User {
   talentContactRequests TalentContactRequest[]
   electedPresidencies   ClubPresidency[]     @relation("ClubPresidencyElectedBy")
   membershipApplications MembershipApplication[]
+  proposedMotions      Motion[]            @relation("MotionProposerUser")
+  secondedMotions      Motion[]            @relation("MotionSeconderUser")
 }
 
 model PasswordResetToken {
@@ -305,6 +307,8 @@ model Club {
   membershipApplications   MembershipApplication[]
   transfersFrom            MemberTransferRequest[] @relation("TransferFromClub")
   transfersTo              MemberTransferRequest[] @relation("TransferToClub")
+  proposedMotions          Motion[]            @relation("MotionProposerClub")
+  secondedMotions          Motion[]            @relation("MotionSeconderClub")
 }
 
 model Membership {
@@ -388,6 +392,7 @@ model Meeting {
   clubAttendances    ClubMeetingAttendance[]
   cartasPoder        CartaPoder[]
   acta               MeetingActa?
+  motions            Motion[]
   @@index([clubId])
   @@index([status, scheduledAt])
   @@index([type])
@@ -446,6 +451,7 @@ model VoteSession {
   nextRounds               VoteSession[]     @relation("VoteRound")
   topic                    AgendaTopic       @relation(fields: [topicId], references: [id], onDelete: Cascade)
   meeting                  Meeting           @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  motion                   Motion?
   @@index([meetingId, status])
   @@index([previousSessionId])
 }
@@ -476,6 +482,39 @@ model Vote {
   @@index([voteSessionId])
   @@index([voteSessionId, clubId])
   @@index([candidateId])
+}
+
+enum MotionStatus {
+  PROPOSED
+  SECONDED
+  VOTING
+  APPROVED
+  REJECTED
+}
+
+model Motion {
+  id                 String       @id @default(cuid())
+  meetingId          String
+  title              String
+  description        String?      @db.Text
+  status             MotionStatus @default(PROPOSED)
+  proposedByUserId   String
+  proposedByClubId   String
+  secondedByUserId   String?
+  secondedByClubId   String?
+  voteSessionId      String?      @unique
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  meeting            Meeting      @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  proposedByUser     User         @relation("MotionProposerUser", fields: [proposedByUserId], references: [id], onDelete: Cascade)
+  proposedByClub     Club         @relation("MotionProposerClub", fields: [proposedByClubId], references: [id], onDelete: Cascade)
+  secondedByUser     User?        @relation("MotionSeconderUser", fields: [secondedByUserId], references: [id], onDelete: SetNull)
+  secondedByClub     Club?        @relation("MotionSeconderClub", fields: [secondedByClubId], references: [id], onDelete: SetNull)
+  voteSession        VoteSession? @relation(fields: [voteSessionId], references: [id], onDelete: SetNull)
+
+  @@index([meetingId])
+  @@index([status])
 }
 
 model MeetingParticipant {

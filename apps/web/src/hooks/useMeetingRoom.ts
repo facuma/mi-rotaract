@@ -74,6 +74,19 @@ export type MeetingSnapshot = {
     choice: 'YES' | 'NO' | 'ABSTAIN';
     candidateId?: string | null;
   } | null;
+  motions?: {
+    id: string;
+    meetingId: string;
+    title: string;
+    description: string | null;
+    status: 'PROPOSED' | 'SECONDED' | 'VOTING' | 'APPROVED' | 'REJECTED';
+    proposedByClubId: string;
+    proposedByClubName: string;
+    secondedByClubId: string | null;
+    secondedByClubName: string | null;
+    voteSessionId: string | null;
+    createdAt: string;
+  }[];
 };
 
 export type VoteResult = {
@@ -180,6 +193,7 @@ function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
       : null,
     clubAttendance: (data.clubAttendance as MeetingSnapshot['clubAttendance']) ?? [],
     ownVote,
+    motions: (data.motions as MeetingSnapshot['motions']) ?? [],
   };
 }
 
@@ -187,6 +201,7 @@ function joinMeetingWithAck(
   s: Socket,
   meetingId: string,
   setSnapshot: (data: MeetingSnapshot | null) => void,
+  setVoteResult: (data: VoteResult | null) => void,
   setJoinError: (msg: string | null) => void,
 ) {
   s.emit(
@@ -195,7 +210,13 @@ function joinMeetingWithAck(
     (res: { event?: string; data?: unknown } | undefined) => {
       if (!res) return;
       if (res.event === 'meeting.snapshot' && res.data && typeof res.data === 'object') {
-        setSnapshot(normalizeSnapshot(res.data as Record<string, unknown>));
+        const payload = res.data as Record<string, unknown>;
+        setSnapshot(normalizeSnapshot(payload));
+        if (payload.voteResult) {
+          setVoteResult(payload.voteResult as VoteResult);
+        } else {
+          setVoteResult(null);
+        }
         setJoinError(null);
       }
       if (res.event === 'error') {
@@ -224,11 +245,16 @@ export function useMeetingRoom(meetingId: string | null) {
     s.on('connect', () => {
       setConnected(true);
       setJoinError(null);
-      joinMeetingWithAck(s, meetingId, setSnapshot, setJoinError);
+      joinMeetingWithAck(s, meetingId, setSnapshot, setVoteResult, setJoinError);
     });
     s.on('disconnect', () => setConnected(false));
     s.on('meeting.snapshot', (data: Record<string, unknown>) => {
       setSnapshot(normalizeSnapshot(data));
+      if (data.voteResult) {
+        setVoteResult(data.voteResult as VoteResult);
+      } else {
+        setVoteResult(null);
+      }
       setJoinError(null);
     });
     s.on('meeting.vote.closed', (data: RawVoteEvent) => {

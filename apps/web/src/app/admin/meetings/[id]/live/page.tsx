@@ -103,6 +103,7 @@ export default function AdminLivePage() {
                     clubAttendance={snapshot.clubAttendance}
                     attendanceLocked={snapshot.attendanceLocked}
                     voteResult={voteResult}
+                    motions={snapshot.motions}
                   />
                 </CardContent>
               </Card>

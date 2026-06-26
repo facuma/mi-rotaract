@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState, useEffect } from 'react';
-import { votingApi, timersApi, topicsApi, queueApi, meetingsApi, usersApi, clubsApi } from '@/lib/api';
+import { votingApi, timersApi, topicsApi, queueApi, meetingsApi, usersApi, clubsApi, motionsApi } from '@/lib/api';
 import { VoteReadyModal } from '@/components/meetings/VoteReadyModal';
 import { VoteResultSummary } from '@/components/VoteResultSummary';
 import { Button } from '@/components/ui/button';
@@ -56,6 +56,7 @@ type AdminLiveControlsProps = {
   clubAttendance?: { clubId: string; clubName: string; connected: boolean }[];
   attendanceLocked?: boolean;
   voteResult?: VoteResult | null;
+  motions?: any[];
   onVoteOpened?: () => void;
   onVoteClosed?: () => void;
   onTopicChanged?: () => void;
@@ -82,6 +83,7 @@ export function AdminLiveControls({
   clubAttendance = [],
   attendanceLocked = false,
   voteResult,
+  motions = [],
   onVoteOpened,
   onVoteClosed,
   onTopicChanged,
@@ -114,6 +116,32 @@ export function AdminLiveControls({
   const [actionLoading, setActionLoading] = useState(false);
   const [rdrChoice, setRdrChoice] = useState<'YES' | 'NO' | null>(null);
   const [rdrCandidateId, setRdrCandidateId] = useState<string | null>(null);
+
+  const [newTopicTitle, setNewTopicTitle] = useState('');
+  const [newTopicType, setNewTopicType] = useState('DISCUSSION');
+  const [creatingTopic, setCreatingTopic] = useState(false);
+  const [motionVoteMethod, setMotionVoteMethod] = useState<Record<string, 'PUBLIC' | 'SECRET'>>({});
+  const [motionVoteMajority, setMotionVoteMajority] = useState<Record<string, 'SIMPLE' | 'ABSOLUTE' | 'TWO_THIRDS' | 'THREE_QUARTERS'>>({});
+
+  async function handleCreateTopic() {
+    if (!newTopicTitle.trim()) {
+      toast.error('El título del tema es requerido.');
+      return;
+    }
+    setCreatingTopic(true);
+    try {
+      await topicsApi.create(meetingId, {
+        title: newTopicTitle.trim(),
+        type: newTopicType as any,
+      });
+      toast.success('Tema creado.');
+      setNewTopicTitle('');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al crear tema.');
+    } finally {
+      setCreatingTopic(false);
+    }
+  }
 
   async function handleLockAttendance() {
     setLockingAttendance(true);
@@ -345,20 +373,54 @@ export function AdminLiveControls({
 
       {/* Topic section */}
       <FormSection title="Tema actual" description="Seleccioná el tema en discusión.">
-        <Select
-          value={currentTopicId ?? '__none__'}
-          onValueChange={(v) => setCurrentTopic(v === '__none__' ? null : v)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Sin tema" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">— Sin tema —</SelectItem>
-            {topics.map((t) => (
-              <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="space-y-3">
+          <Select
+            value={currentTopicId ?? '__none__'}
+            onValueChange={(v) => setCurrentTopic(v === '__none__' ? null : v)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Sin tema" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">— Sin tema —</SelectItem>
+              {topics.map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="pt-3 border-t border-border mt-3 space-y-2">
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Creación Rápida de Temas</p>
+            <div className="flex gap-1.5 flex-col sm:flex-row">
+              <Input
+                placeholder="Nombre del nuevo tema..."
+                value={newTopicTitle}
+                onChange={(e) => setNewTopicTitle(e.target.value)}
+                className="h-8 text-xs flex-1"
+              />
+              <div className="flex gap-1.5">
+                <Select value={newTopicType} onValueChange={setNewTopicType}>
+                  <SelectTrigger className="h-8 text-xs w-28 shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DISCUSSION">Debate</SelectItem>
+                    <SelectItem value="VOTING">Votación</SelectItem>
+                    <SelectItem value="INFORMATIVE">Informativo</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  className="h-8 px-3 text-xs shrink-0"
+                  onClick={handleCreateTopic}
+                  disabled={creatingTopic}
+                >
+                  {creatingTopic ? '...' : 'Crear'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       </FormSection>
 
       {/* Speaker section */}
@@ -424,7 +486,7 @@ export function AdminLiveControls({
               const pendingClubs = clubAttendance.filter(
                 (c) => !activeVoteSession.votedClubIds?.includes(c.clubId)
               );
-              if (pendingClubs.length === 0) return null;
+              if (pendingClubs.length === 0 || activeVoteSession.votingMethod === 'SECRET') return null;
               return (
                 <div className="mt-4 rounded-lg border border-border bg-muted/20 p-3 space-y-3">
                   <div className="text-xs font-semibold text-muted-foreground">
@@ -852,6 +914,99 @@ export function AdminLiveControls({
           </>
         )}
       </FormSection>
+
+      {/* Motions section */}
+      {motions && (
+        <FormSection title="Mociones" description="Cola de mociones de la reunión.">
+          {motions.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-3 text-center border border-dashed rounded-lg bg-muted/5">
+              No hay mociones en cola.
+            </p>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              {motions.map((m) => {
+                const isSeconded = m.status === 'SECONDED';
+                const isProposed = m.status === 'PROPOSED';
+                const isVoting = m.status === 'VOTING';
+                const isApproved = m.status === 'APPROVED';
+                const isRejected = m.status === 'REJECTED';
+                
+                return (
+                  <div key={m.id} className="rounded-lg border border-border p-3 space-y-2 bg-muted/10 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-foreground truncate">{m.title}</p>
+                        {m.description && <p className="text-[11px] text-muted-foreground truncate mt-0.5">{m.description}</p>}
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Propone: <span className="font-semibold">{m.proposedByClubName}</span>
+                          {m.secondedByClubName && (
+                            <> • Secunda: <span className="font-semibold">{m.secondedByClubName}</span></>
+                          )}
+                        </p>
+                      </div>
+                      <Badge className="shrink-0 text-[10px] px-1.5 py-0" variant={isApproved ? 'success' : isRejected ? 'destructive' : isSeconded ? 'info' : 'outline'}>
+                        {isApproved ? 'APROBADA' : isRejected ? 'RECHAZADA' : isVoting ? 'VOTANDO' : isSeconded ? 'SEGUNDADA' : 'PROPUESTA'}
+                      </Badge>
+                    </div>
+
+                    {isSeconded && (
+                      <div className="flex gap-1.5 justify-end pt-1.5 border-t border-border/50 flex-wrap">
+                        <Select
+                          value={motionVoteMethod[m.id] || 'PUBLIC'}
+                          onValueChange={(val) => setMotionVoteMethod({ ...motionVoteMethod, [m.id]: val as any })}
+                        >
+                          <SelectTrigger className="h-7 text-[10px] w-24">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="PUBLIC">Público</SelectItem>
+                            <SelectItem value="SECRET">Secreto</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={motionVoteMajority[m.id] || 'SIMPLE'}
+                          onValueChange={(val) => setMotionVoteMajority({ ...motionVoteMajority, [m.id]: val as any })}
+                        >
+                          <SelectTrigger className="h-7 text-[10px] w-28">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="SIMPLE">Mayoría Simple</SelectItem>
+                            <SelectItem value="ABSOLUTE">Absoluta</SelectItem>
+                            <SelectItem value="TWO_THIRDS">Dos Tercios</SelectItem>
+                            <SelectItem value="THREE_QUARTERS">Tres Cuartos</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          className="h-7 px-2 text-[10px]"
+                          disabled={actionLoading}
+                          onClick={async () => {
+                            setActionLoading(true);
+                            try {
+                              await motionsApi.launchVote(meetingId, m.id, {
+                                votingMethod: (motionVoteMethod[m.id] || 'PUBLIC') as any,
+                                requiredMajority: (motionVoteMajority[m.id] || 'SIMPLE') as any,
+                              });
+                              toast.success('Votación de moción iniciada.');
+                            } catch (err) {
+                              toast.error(err instanceof Error ? err.message : 'Error al lanzar voto');
+                            } finally {
+                              setActionLoading(false);
+                            }
+                          }}
+                        >
+                          Votar
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </FormSection>
+      )}
 
       {/* Timer section */}
       <FormSection title="Timer" description="Controlá el tiempo del tema actual.">

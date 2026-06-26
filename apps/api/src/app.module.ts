@@ -27,6 +27,7 @@ import { TalentModule } from './talent/talent.module';
 import { TimersModule } from './timers/timers.module';
 import { TopicsModule } from './topics/topics.module';
 import { VotingModule } from './voting/voting.module';
+import { MotionsModule } from './motions/motions.module';
 import { CartaPoderModule } from './carta-poder/carta-poder.module';
 import { EventsBusModule } from './events-bus/events-bus.module';
 import { QueueModule } from './queue/queue.module';
@@ -60,7 +61,7 @@ import { PlatformAdminModule } from './platform-admin/platform-admin.module';
     EventsBusModule,
     QueueModule,
     NotificationsModule,
-    ClubsModule, ClubModule, ClubReportsModule, DashboardModule, AttachmentsModule, ClubProjectsModule, ClubMembersModule, DistrictModule, EventsModule, HistoryModule, MeetingsModule, OpportunitiesModule, ProfileModule, RealtimeModule, SpeakingQueueModule, TalentModule, TimersModule, TopicsModule, VotingModule, CompaniesModule, CartaPoderModule,
+    ClubsModule, ClubModule, ClubReportsModule, DashboardModule, AttachmentsModule, ClubProjectsModule, ClubMembersModule, DistrictModule, EventsModule, HistoryModule, MeetingsModule, OpportunitiesModule, ProfileModule, RealtimeModule, SpeakingQueueModule, TalentModule, TimersModule, TopicsModule, VotingModule, MotionsModule, CompaniesModule, CartaPoderModule,
     EventPermissionsModule,
     EventEmailsModule,
     EventCheckInModule,

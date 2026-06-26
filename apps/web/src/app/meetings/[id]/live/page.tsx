@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useMeetingRoom } from '@/hooks/useMeetingRoom';
@@ -15,6 +16,13 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { cn } from '@/lib/utils';
+import { motionsApi, votingApi } from '@/lib/api';
+import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 
 export default function ParticipantLivePage() {
   const params = useParams();
@@ -22,12 +30,39 @@ export default function ParticipantLivePage() {
   const { snapshot, voteResult, connected, joinError } = useMeetingRoom(meetingId);
   const { user } = useAuthState();
 
+  const [proposeDialogOpen, setProposeDialogOpen] = useState(false);
+  const [motionTitle, setMotionTitle] = useState('');
+  const [motionDesc, setMotionDesc] = useState('');
+  const [submittingMotion, setSubmittingMotion] = useState(false);
+  const [secondingMotionId, setSecondingMotionId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
   const ownRequest =
     user && snapshot?.speakingQueue
       ? snapshot.speakingQueue.find((req) => req.userId === user.id)
       : null;
   const isRequested = !!ownRequest;
   const requestId = ownRequest?.id;
+
+  async function handleProposeMotion(e: React.FormEvent) {
+    e.preventDefault();
+    if (!motionTitle.trim()) {
+      toast.error('La moción debe tener un título.');
+      return;
+    }
+    setSubmittingMotion(true);
+    try {
+      await motionsApi.propose(meetingId, motionTitle.trim(), motionDesc.trim() || undefined);
+      toast.success('Moción propuesta con éxito.');
+      setProposeDialogOpen(false);
+      setMotionTitle('');
+      setMotionDesc('');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al proponer moción');
+    } finally {
+      setSubmittingMotion(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -116,6 +151,179 @@ export default function ParticipantLivePage() {
                 isRequested={isRequested}
                 requestId={requestId}
               />
+            )}
+
+            {/* RDR Tiebreaker Panel (Visible only to RDR when there is a tie) */}
+            {user?.role === 'RDR' && voteResult && !snapshot.activeVoteSession && voteResult.isTied && !voteResult.rdrTiebreakerUsed && (
+              <Card className="border-warning/40 bg-warning/5">
+                <CardContent className="pt-6 space-y-3">
+                  <div>
+                    <h3 className="font-semibold text-warning-foreground text-sm flex items-center gap-1.5">
+                      ⚠️ Desempate RDR Requerido (Art. 49)
+                    </h3>
+                    <p className="text-xs text-muted-foreground">La votación resultó en un empate. Tu voto decidirá el resultado final.</p>
+                  </div>
+                  
+                  {voteResult.ballotType === 'CANDIDATE' && voteResult.candidateResult ? (
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold">Selecciona al candidato ganador:</p>
+                      <div className="space-y-1.5">
+                        {voteResult.candidateResult.candidateResults
+                          .filter((c) => c.votes === voteResult.candidateResult!.candidateResults[0]?.votes)
+                          .map((c) => (
+                            <button
+                              key={c.candidateId}
+                              disabled={actionLoading}
+                              onClick={async () => {
+                                setActionLoading(true);
+                                try {
+                                  await votingApi.rdrCandidateTiebreaker(meetingId, voteResult.voteSessionId, c.candidateId);
+                                  toast.success('Desempate aplicado.');
+                                } catch (err) {
+                                  toast.error(err instanceof Error ? err.message : 'Error');
+                                } finally {
+                                  setActionLoading(false);
+                                }
+                              }}
+                              className="w-full text-left rounded-lg p-3 text-xs border border-border bg-card hover:bg-muted font-medium transition-colors"
+                            >
+                              🏆 {c.displayName} ({c.votes} votos)
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        disabled={actionLoading}
+                        onClick={async () => {
+                          setActionLoading(true);
+                          try {
+                            await votingApi.rdrTiebreaker(meetingId, voteResult.voteSessionId, 'YES');
+                            toast.success('Desempate aplicado: A favor.');
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : 'Error');
+                          } finally {
+                            setActionLoading(false);
+                          }
+                        }}
+                        className="bg-success hover:bg-success/90 border-success text-white"
+                      >
+                        A favor
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={actionLoading}
+                        onClick={async () => {
+                          setActionLoading(true);
+                          try {
+                            await votingApi.rdrTiebreaker(meetingId, voteResult.voteSessionId, 'NO');
+                            toast.success('Desempate aplicado: En contra.');
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : 'Error');
+                          } finally {
+                            setActionLoading(false);
+                          }
+                        }}
+                        className="bg-destructive hover:bg-destructive/90 border-destructive text-white"
+                      >
+                        En contra
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Motions Section */}
+            {snapshot.motions && (
+              <Card className="border-border bg-card">
+                <CardContent className="pt-6 space-y-4">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <h3 className="font-semibold text-base">Mociones de la Sala</h3>
+                      <p className="text-xs text-muted-foreground">Deben ser secundadas por otro club para ir a votación.</p>
+                    </div>
+                    {(snapshot.status === 'LIVE' || snapshot.status === 'PAUSED') && (
+                      <Button onClick={() => setProposeDialogOpen(true)} size="sm">
+                        ＋ Proponer Moción
+                      </Button>
+                    )}
+                  </div>
+
+                  {snapshot.motions.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4 bg-muted/5 rounded-lg border border-dashed">
+                      No hay mociones propuestas.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {snapshot.motions.map((m) => {
+                        const isProposed = m.status === 'PROPOSED';
+                        const isSeconded = m.status === 'SECONDED';
+                        const isVoting = m.status === 'VOTING';
+                        const isApproved = m.status === 'APPROVED';
+                        const isRejected = m.status === 'REJECTED';
+                        
+                        return (
+                          <div key={m.id} className="rounded-lg border border-border p-3 space-y-2 bg-muted/10">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-semibold text-xs text-foreground truncate">{m.title}</h4>
+                                {m.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.description}</p>}
+                                <p className="text-[10px] text-muted-foreground mt-1.5">
+                                  Propone: <span className="font-semibold">{m.proposedByClubName}</span>
+                                  {m.secondedByClubName && (
+                                    <> • Secunda: <span className="font-semibold">{m.secondedByClubName}</span></>
+                                  )}
+                                </p>
+                              </div>
+                              <Badge
+                                className="shrink-0 text-[10px] px-1.5 py-0.5"
+                                variant={
+                                  isApproved ? 'success' :
+                                  isRejected ? 'destructive' :
+                                  isVoting ? 'warning' :
+                                  isSeconded ? 'info' : 'outline'
+                                }
+                              >
+                                {isApproved ? 'Aprobada' :
+                                 isRejected ? 'Rechazada' :
+                                 isVoting ? 'Votando' :
+                                 isSeconded ? 'Segundada' : 'Propuesta'}
+                              </Badge>
+                            </div>
+
+                            {isProposed && (
+                              <div className="flex justify-end pt-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={secondingMotionId === m.id}
+                                  onClick={async () => {
+                                    setSecondingMotionId(m.id);
+                                    try {
+                                      await motionsApi.second(meetingId, m.id);
+                                      toast.success('Moción secundada con éxito.');
+                                    } catch (err) {
+                                      toast.error(err instanceof Error ? err.message : 'Error al secundar');
+                                    } finally {
+                                      setSecondingMotionId(null);
+                                    }
+                                  }}
+                                  className="h-7 px-2.5 text-[11px]"
+                                >
+                                  {secondingMotionId === m.id ? 'Segundando...' : '✋ Secundar'}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
             {/* Speaking queue */}
@@ -224,6 +432,45 @@ export default function ParticipantLivePage() {
           </div>
         </div>
       )}
+
+      {/* Propose Motion Dialog */}
+      <Dialog open={proposeDialogOpen} onOpenChange={setProposeDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Proponer Moción</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleProposeMotion} className="space-y-4 pt-2">
+            <div className="space-y-1">
+              <Label htmlFor="title" className="text-xs">Título de la moción</Label>
+              <Input
+                id="title"
+                placeholder="Ej. Aprobar la moción de fondos para..."
+                value={motionTitle}
+                onChange={(e) => setMotionTitle(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="description" className="text-xs">Descripción (opcional)</Label>
+              <Textarea
+                id="description"
+                placeholder="Explica brevemente de qué se trata la moción..."
+                value={motionDesc}
+                onChange={(e) => setMotionDesc(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setProposeDialogOpen(false)} disabled={submittingMotion}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={submittingMotion}>
+                {submittingMotion ? 'Enviando...' : 'Proponer Moción'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

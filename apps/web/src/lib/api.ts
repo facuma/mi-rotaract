@@ -213,6 +213,31 @@ export const topicsApi = {
     bulkImportApi(`/meetings/${meetingId}/topics/bulk`, file, mode),
 };
 
+export const motionsApi = {
+  propose: (meetingId: string, title: string, description?: string) =>
+    api<any>(`/meetings/${meetingId}/motions`, {
+      method: 'POST',
+      body: JSON.stringify({ title, description }),
+    }),
+  second: (meetingId: string, motionId: string) =>
+    api<any>(`/meetings/${meetingId}/motions/${motionId}/second`, {
+      method: 'POST',
+    }),
+  launchVote: (
+    meetingId: string,
+    motionId: string,
+    body: {
+      votingMethod: 'PUBLIC' | 'SECRET';
+      requiredMajority: 'SIMPLE' | 'ABSOLUTE' | 'TWO_THIRDS' | 'THREE_QUARTERS';
+    },
+  ) =>
+    api<any>(`/meetings/${meetingId}/motions/${motionId}/launch-vote`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+};
+
+
 
 
 export type Club = {

@@ -27,25 +27,41 @@ export class TopicsService {
   }
 
   async create(meetingId: string, dto: CreateTopicDto) {
-    await this.assertMeetingExists(meetingId);
+    const meeting = await this.prisma.meeting.findUnique({ where: { id: meetingId } });
+    if (!meeting) throw new NotFoundException('Reunión no encontrada');
     const maxOrder = await this.prisma.agendaTopic
       .aggregate({ where: { meetingId }, _max: { order: true } })
       .then((r) => r._max.order ?? -1);
-    return this.prisma.agendaTopic.create({
+
+    let targetOrder = dto.order ?? (maxOrder + 1);
+
+    // If meeting is live/paused, ensure any new topic is placed after the attendance topic
+    if (meeting.status === 'LIVE' || meeting.status === 'PAUSED') {
+      const attendanceTopic = await this.prisma.agendaTopic.findFirst({
+        where: { meetingId, title: { contains: 'asistencia', mode: 'insensitive' } },
+      });
+      if (attendanceTopic && targetOrder <= attendanceTopic.order) {
+        targetOrder = attendanceTopic.order + 1;
+      }
+    }
+
+    const topic = await this.prisma.agendaTopic.create({
       data: {
         meetingId,
         title: dto.title,
         description: dto.description ?? null,
-        order: dto.order ?? maxOrder + 1,
+        order: targetOrder,
         type: dto.type ?? 'DISCUSSION',
         estimatedDurationSec: dto.estimatedDurationSec ?? null,
       },
     });
+    await this.realtime.broadcastSnapshot(meetingId);
+    return topic;
   }
 
   async update(meetingId: string, topicId: string, dto: UpdateTopicDto) {
     await this.assertTopicInMeeting(meetingId, topicId);
-    return this.prisma.agendaTopic.update({
+    const topic = await this.prisma.agendaTopic.update({
       where: { id: topicId },
       data: {
         ...(dto.title != null && { title: dto.title }),
@@ -56,6 +72,8 @@ export class TopicsService {
         ...(dto.status != null && { status: dto.status }),
       },
     });
+    await this.realtime.broadcastSnapshot(meetingId);
+    return topic;
   }
 
   async remove(meetingId: string, topicId: string) {
@@ -68,18 +86,34 @@ export class TopicsService {
       });
     }
     await this.prisma.agendaTopic.delete({ where: { id: topicId } });
+    await this.realtime.broadcastSnapshot(meetingId);
     return { ok: true };
   }
 
   async reorder(meetingId: string, dto: ReorderTopicsDto) {
-    await this.assertMeetingExists(meetingId);
+    const meeting = await this.prisma.meeting.findUnique({ where: { id: meetingId } });
+    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+
     const topics = await this.prisma.agendaTopic.findMany({
       where: { meetingId, id: { in: dto.topicIds } },
     });
     if (topics.length !== dto.topicIds.length)
       throw new BadRequestException('Algunos temas no pertenecen a esta reunión');
+
+    let targetTopicIds = [...dto.topicIds];
+    if (meeting.status === 'LIVE' || meeting.status === 'PAUSED') {
+      const attendanceTopic = topics.find(t => t.title.toLowerCase().includes('asistencia'));
+      if (attendanceTopic) {
+        const index = targetTopicIds.indexOf(attendanceTopic.id);
+        if (index > -1) {
+          targetTopicIds.splice(index, 1);
+        }
+        targetTopicIds.unshift(attendanceTopic.id);
+      }
+    }
+
     await this.prisma.$transaction(
-      dto.topicIds.map((id, index) =>
+      targetTopicIds.map((id, index) =>
         this.prisma.agendaTopic.update({
           where: { id },
           data: { order: index },
@@ -94,9 +128,25 @@ export class TopicsService {
     if (!meeting) throw new NotFoundException('Reunión no encontrada');
     if (meeting.status !== MeetingStatus.LIVE && meeting.status !== MeetingStatus.PAUSED)
       throw new BadRequestException('Solo se puede cambiar el tema actual en reunión en vivo o pausada');
+    
     if (topicId) {
       await this.assertTopicInMeeting(meetingId, topicId);
+
+      // Enforce: cannot advance in the agenda (order > first topic) until attendance is locked.
+      if (!meeting.attendanceLocked) {
+        const topics = await this.prisma.agendaTopic.findMany({
+          where: { meetingId },
+          orderBy: { order: 'asc' },
+        });
+        const firstTopic = topics[0];
+        if (firstTopic && topicId !== firstTopic.id) {
+          throw new BadRequestException(
+            'Debe registrar y cerrar la asistencia (Cerrar Asistencia) antes de avanzar a otros temas del orden del día.',
+          );
+        }
+      }
     }
+
     const updated = await this.prisma.meeting.update({
       where: { id: meetingId },
       data: { currentTopicId: topicId },

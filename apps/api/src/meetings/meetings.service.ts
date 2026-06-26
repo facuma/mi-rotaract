@@ -451,6 +451,42 @@ export class MeetingsService {
       isInformationalOnly = !quorumMet; // Art. 42: no quorum = informational only
     }
 
+    // Ensure attendance topic exists as the first topic
+    const topics = await this.prisma.agendaTopic.findMany({
+      where: { meetingId: id },
+      orderBy: { order: 'asc' },
+    });
+    let firstTopic = topics[0];
+    const hasAttendance = topics.some(t => t.title.toLowerCase().includes('asistencia'));
+    if (!hasAttendance) {
+      const minOrder = topics.length > 0 ? topics[0].order - 1 : 0;
+      firstTopic = await this.prisma.agendaTopic.create({
+        data: {
+          meetingId: id,
+          title: 'Asistencia',
+          description: 'Registro de asistencia y verificación de quórum',
+          order: minOrder,
+          type: 'DISCUSSION',
+          status: 'ACTIVE',
+        },
+      });
+    } else {
+      const attendanceTopic = topics.find(t => t.title.toLowerCase().includes('asistencia'))!;
+      if (attendanceTopic.id !== firstTopic.id) {
+        await this.prisma.agendaTopic.update({
+          where: { id: attendanceTopic.id },
+          data: { order: firstTopic.order - 1, status: 'ACTIVE' },
+        });
+        firstTopic = { ...attendanceTopic, order: firstTopic.order - 1, status: 'ACTIVE' };
+      } else {
+        await this.prisma.agendaTopic.update({
+          where: { id: attendanceTopic.id },
+          data: { status: 'ACTIVE' },
+        });
+        firstTopic = { ...attendanceTopic, status: 'ACTIVE' };
+      }
+    }
+
     const updated = await this.prisma.meeting.update({
       where: { id },
       data: {
@@ -459,6 +495,7 @@ export class MeetingsService {
         quorumRequired,
         quorumMet,
         isInformationalOnly,
+        currentTopicId: firstTopic.id,
       },
       include: { club: true },
     });
@@ -556,6 +593,18 @@ export class MeetingsService {
       quorumRequired = quorumStatus.required;
       quorumMet = quorumStatus.met;
       isInformationalOnly = !quorumMet;
+    }
+
+    // Set attendance topic status to DONE
+    const firstTopic = await this.prisma.agendaTopic.findFirst({
+      where: { meetingId: id },
+      orderBy: { order: 'asc' },
+    });
+    if (firstTopic && firstTopic.title.toLowerCase().includes('asistencia')) {
+      await this.prisma.agendaTopic.update({
+        where: { id: firstTopic.id },
+        data: { status: 'DONE' },
+      });
     }
 
     const updated = await this.prisma.meeting.update({

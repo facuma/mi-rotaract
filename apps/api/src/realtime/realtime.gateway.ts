@@ -8,7 +8,7 @@ import {
 import { forwardRef, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Server } from 'socket.io';
-import { VoteChoice } from '@prisma/client';
+import { VoteChoice, VotingMethod } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { VotingService } from '../voting/voting.service';
@@ -133,7 +133,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
     const meeting = await this.prisma.meeting.findUnique({
       where: { id: meetingId },
-      select: { id: true, isDistrictMeeting: true },
+      select: { id: true, isDistrictMeeting: true, attendanceLocked: true },
     });
     if (!meeting) {
       return { event: 'error', data: { message: 'Reunión no encontrada' } };
@@ -253,10 +253,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Track club connection and register attendance
       if (clubId) {
         this.trackClubConnect(meetingId, clubId, client.id);
-        try {
-          await this.quorumService.recordClubAttendance(meetingId, clubId, userId, participant.isDelegate);
-          await this.quorumService.recheckAndUpdateQuorum(meetingId);
-        } catch { /* non-blocking */ }
+        if (!meeting.attendanceLocked) {
+          try {
+            await this.quorumService.recordClubAttendance(meetingId, clubId, userId, participant.isDelegate);
+            await this.quorumService.recheckAndUpdateQuorum(meetingId);
+          } catch { /* non-blocking */ }
+        }
       }
 
       await this.audit.log({
@@ -367,37 +369,45 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const openVoteSession = meeting.voteSessions[0];
 
     // Run all independent queries in parallel
-    const [ownVote, voteResult, activeTimers, currentSpeaker, nextSpeaker, votedClubs] = await Promise.all([
+    const [ownVote, voteResult, activeTimers, currentSpeaker, nextSpeaker, votedClubs, motions] = await Promise.all([
       // Own vote
       userId && openVoteSession
         ? this.prisma.vote.findUnique({
             where: { voteSessionId_userId: { voteSessionId: openVoteSession.id, userId } },
           }).then((v) => v ? { voteSessionId: v.voteSessionId, choice: v.choice, candidateId: v.candidateId } : null)
         : Promise.resolve(null),
-      // Vote result (only fetch if no open session)
-      !openVoteSession
-        ? this.prisma.voteSession.findFirst({
+      // Vote result
+      openVoteSession
+        ? this.votingService.getResult(openVoteSession.id).then((res) => {
+            if (openVoteSession.votingMethod === VotingMethod.SECRET) {
+              return {
+                voteSessionId: res.voteSessionId,
+                yes: 0,
+                no: 0,
+                abstain: 0,
+                total: res.total,
+                approved: null,
+                isTied: null,
+                requiredMajority: res.requiredMajority,
+                ballotType: res.ballotType,
+                round: res.round,
+                candidateResult: null,
+              };
+            }
+            return res;
+          }).catch(() => null)
+        : this.prisma.voteSession.findFirst({
             where: { meetingId, status: 'CLOSED' },
             orderBy: { closedAt: 'desc' },
+            select: { id: true },
           }).then(async (lastClosed) => {
             if (!lastClosed) return null;
-            const counts = await this.prisma.vote.groupBy({
-              by: ['choice'],
-              where: { voteSessionId: lastClosed.id },
-              _count: true,
-            });
-            const map = Object.fromEntries(counts.map((c) => [c.choice, c._count]));
-            const yes = map.YES ?? 0;
-            const no = map.NO ?? 0;
-            const abstain = map.ABSTAIN ?? 0;
-            return {
-              voteSessionId: lastClosed.id,
-              topicId: lastClosed.topicId,
-              counts: { yes, no, abstain },
-              total: yes + no + abstain,
-            };
-          })
-        : Promise.resolve(null),
+            try {
+              return await this.votingService.getResult(lastClosed.id);
+            } catch (e) {
+              return null;
+            }
+          }),
       // Timers
       this.prisma.timerSession.findMany({
         where: { meetingId, endedAt: null },
@@ -411,13 +421,32 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       meeting.nextSpeakerId
         ? this.prisma.user.findUnique({ where: { id: meeting.nextSpeakerId }, select: { id: true, fullName: true } })
         : Promise.resolve(null),
-      // Voted clubs in active session
+      // Voted clubs in active session (handles secret votes where clubId is null in Vote table)
       openVoteSession
         ? this.prisma.vote.findMany({
-            where: { voteSessionId: openVoteSession.id, clubId: { not: null } },
-            select: { clubId: true },
+            where: { voteSessionId: openVoteSession.id },
+            select: { userId: true },
+          }).then(async (votes) => {
+            const voterUserIds = votes.map((v) => v.userId);
+            const participants = await this.prisma.meetingParticipant.findMany({
+              where: {
+                meetingId,
+                userId: { in: voterUserIds },
+              },
+              select: { clubId: true },
+            });
+            return participants.map((p) => ({ clubId: p.clubId }));
           })
         : Promise.resolve([]),
+      // Motions
+      this.prisma.motion.findMany({
+        where: { meetingId },
+        orderBy: { createdAt: 'asc' },
+        include: {
+          proposedByClub: { select: { id: true, name: true } },
+          secondedByClub: { select: { id: true, name: true } },
+        },
+      }),
     ]);
 
     const votedClubIds = votedClubs
@@ -508,6 +537,19 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       ownVote,
       voteResult,
       timers,
+      motions: motions.map((m) => ({
+        id: m.id,
+        meetingId: m.meetingId,
+        title: m.title,
+        description: m.description,
+        status: m.status,
+        proposedByClubId: m.proposedByClubId,
+        proposedByClubName: m.proposedByClub.name,
+        secondedByClubId: m.secondedByClubId,
+        secondedByClubName: m.secondedByClub?.name ?? null,
+        voteSessionId: m.voteSessionId,
+        createdAt: m.createdAt.toISOString(),
+      })),
       speakingQueue: meeting.speakingRequests.map((r) => ({
         id: r.id,
         meetingId: r.meetingId,
