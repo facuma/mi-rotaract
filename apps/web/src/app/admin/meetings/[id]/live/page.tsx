@@ -5,7 +5,13 @@ import Link from 'next/link';
 import { useMeetingRoom } from '@/hooks/useMeetingRoom';
 import { CurrentTopicCard } from '@/components/CurrentTopicCard';
 import { SpeakingQueueList } from '@/components/SpeakingQueueList';
-import { AdminLiveControls } from '@/components/AdminLiveControls';
+import {
+  AdminAttendanceControl,
+  AdminTopicControl,
+  AdminSpeakerControl,
+  AdminVotingControl,
+  AdminMotionsControl,
+} from '@/components/AdminLiveControls';
 import { QuorumIndicator } from '@/components/meetings/QuorumIndicator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -75,6 +81,19 @@ export default function AdminLivePage() {
                 topics={snapshot.topics}
                 currentTopicId={snapshot.currentTopicId}
               />
+              <AdminVotingControl
+                meetingId={meetingId}
+                activeVoteSession={snapshot.activeVoteSession ?? null}
+                voteResult={voteResult}
+                clubAttendance={snapshot.clubAttendance}
+                currentTopic={snapshot.currentTopic}
+                topics={snapshot.topics}
+                currentTopicId={snapshot.currentTopicId}
+              />
+              <AdminMotionsControl
+                meetingId={meetingId}
+                motions={snapshot.motions}
+              />
               <SpeakingQueueList
                 items={snapshot.speakingQueue ?? []}
                 meetingId={meetingId}
@@ -84,29 +103,25 @@ export default function AdminLivePage() {
               />
             </div>
 
-            <div className="lg:sticky lg:top-20 lg:self-start">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Controles</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <AdminLiveControls
-                    meetingId={meetingId}
-                    topics={snapshot.topics}
-                    currentTopicId={snapshot.currentTopicId}
-                    currentTopic={snapshot.currentTopic}
-                    activeVoteSession={snapshot.activeVoteSession ?? null}
-                    activeTimer={snapshot.activeTimer ?? null}
-                    currentSpeaker={snapshot.currentSpeaker}
-                    nextSpeaker={snapshot.nextSpeaker}
-                    clubsPresent={snapshot.quorum?.present ?? 0}
-                    clubAttendance={snapshot.clubAttendance}
-                    attendanceLocked={snapshot.attendanceLocked}
-                    voteResult={voteResult}
-                    motions={snapshot.motions}
-                  />
-                </CardContent>
-              </Card>
+            <div className="space-y-6 lg:sticky lg:top-20 lg:self-start">
+              <AdminAttendanceControl
+                meetingId={meetingId}
+                clubAttendance={snapshot.clubAttendance}
+                attendanceLocked={snapshot.attendanceLocked}
+                clubsPresent={snapshot.quorum?.present ?? 0}
+              />
+              <AdminTopicControl
+                meetingId={meetingId}
+                topics={snapshot.topics}
+                currentTopicId={snapshot.currentTopicId}
+                currentTopic={snapshot.currentTopic}
+                activeTimer={snapshot.activeTimer ?? null}
+              />
+              <AdminSpeakerControl
+                meetingId={meetingId}
+                currentSpeaker={snapshot.currentSpeaker}
+                nextSpeaker={snapshot.nextSpeaker}
+              />
             </div>
           </div>
         </div>
