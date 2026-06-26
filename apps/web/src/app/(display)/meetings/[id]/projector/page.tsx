@@ -1,15 +1,83 @@
 'use client';
 
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useMeetingRoom } from '@/hooks/useMeetingRoom';
 import { TimerDisplay } from '@/components/TimerDisplay';
+import { Button } from '@/components/ui/button';
+import { Volume2, VolumeX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MEETING_TYPE_LABELS, MAJORITY_TYPE_LABELS } from '@/lib/meeting-constants';
+
+function playChimeSound() {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    
+    // First tone (D5)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(587.33, ctx.currentTime);
+    gain1.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    
+    osc1.start(ctx.currentTime);
+    osc1.stop(ctx.currentTime + 0.35);
+    
+    // Second tone (A5)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880, ctx.currentTime + 0.12);
+    gain2.gain.setValueAtTime(0.12, ctx.currentTime + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.47);
+    
+    osc2.start(ctx.currentTime + 0.12);
+    osc2.stop(ctx.currentTime + 0.47);
+  } catch (err) {
+    console.error('Failed to play chime sound:', err);
+  }
+}
 
 export default function ProjectorPage() {
   const params = useParams();
   const meetingId = params.id as string;
   const { snapshot, voteResult, connected } = useMeetingRoom(meetingId);
+
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [prevQueueIds, setPrevQueueIds] = useState<string[]>([]);
+  const isInitialized = useRef(false);
+
+  useEffect(() => {
+    if (!snapshot?.speakingQueue) return;
+    
+    const currentQueueIds = snapshot.speakingQueue.map((item) => item.id);
+    
+    if (!isInitialized.current) {
+      setPrevQueueIds(currentQueueIds);
+      isInitialized.current = true;
+      return;
+    }
+    
+    const hasNewRequest = currentQueueIds.some((id) => !prevQueueIds.includes(id));
+    if (hasNewRequest && soundEnabled) {
+      playChimeSound();
+    }
+    
+    setPrevQueueIds(currentQueueIds);
+  }, [snapshot?.speakingQueue, prevQueueIds, soundEnabled]);
 
   const quorum = snapshot?.quorum;
   const clubs = snapshot?.clubAttendance ?? [];
@@ -60,6 +128,16 @@ export default function ProjectorPage() {
               </span>
             </div>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className="h-8 w-8 text-muted-foreground hover:text-foreground border border-border/30 hover:bg-muted/50 rounded-lg"
+            title={soundEnabled ? 'Silenciar sonido' : 'Activar sonido'}
+          >
+            {soundEnabled ? <Volume2 className="h-4 w-4 text-success" /> : <VolumeX className="h-4 w-4 text-destructive animate-pulse" />}
+          </Button>
+
           <div className="flex items-center gap-1.5">
             <div className={cn('size-2 rounded-full', connected ? 'bg-success animate-pulse' : 'bg-destructive')} />
             <span className="text-xs text-muted-foreground">{connected ? 'Conectado' : 'Reconectando...'}</span>
@@ -102,6 +180,55 @@ export default function ProjectorPage() {
                 <p className="text-[clamp(1rem,3vw,2rem)] font-semibold">
                   {snapshot.currentSpeaker.fullName}
                 </p>
+              </div>
+            )}
+
+            {/* Speaking Queue (Cola de Oradores) */}
+            {snapshot.speakingQueue && snapshot.speakingQueue.length > 0 && (
+              <div className="w-full max-w-xl space-y-3 pt-6 border-t border-border/40 mt-4">
+                <p className="text-xs uppercase tracking-widest text-muted-foreground text-center">Cola de oradores</p>
+                <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
+                  {snapshot.speakingQueue
+                    .sort((a, b) => a.position - b.position)
+                    .map((item, idx) => {
+                      const isCurrent = snapshot.currentSpeaker?.id === item.userId;
+                      const isNext = snapshot.nextSpeaker?.id === item.userId;
+                      return (
+                        <div
+                          key={item.id}
+                          className={cn(
+                            "flex items-center justify-between rounded-xl px-4 py-2 border text-left transition-all duration-300",
+                            isCurrent
+                              ? "border-primary bg-primary/10 text-primary scale-105 font-bold shadow-md shadow-primary/5"
+                              : isNext
+                              ? "border-accent/50 bg-accent/10 text-accent font-semibold"
+                              : "border-border bg-muted/20"
+                          )}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span
+                              className={cn(
+                                "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                                isCurrent
+                                  ? "bg-primary text-primary-foreground"
+                                  : isNext
+                                  ? "bg-accent text-accent-foreground"
+                                  : "bg-muted text-muted-foreground"
+                              )}
+                            >
+                              {idx + 1}
+                            </span>
+                            <span className="text-sm truncate">{item.fullName}</span>
+                          </div>
+                          {isCurrent ? (
+                            <span className="text-[10px] font-bold bg-primary/20 text-primary px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">Hablando</span>
+                          ) : isNext ? (
+                            <span className="text-[10px] font-bold bg-accent/20 text-accent px-2 py-0.5 rounded-full uppercase tracking-wider">Siguiente</span>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
             )}
           </>
