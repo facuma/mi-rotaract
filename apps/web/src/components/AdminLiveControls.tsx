@@ -339,6 +339,10 @@ export function AdminLiveControls({
   const currentTopicIsMotion = currentTopic?.type === 'VOTING' || currentTopic?.title?.startsWith('Moción:');
   const showReturnButton = !!(currentTopicIsMotion && previousNormalTopic);
 
+  const pendingClubs = activeVoteSession
+    ? clubAttendance.filter((c) => !activeVoteSession.votedClubIds?.includes(c.clubId))
+    : [];
+
   return (
     <div className={cn('space-y-5', className)}>
       {/* Attendance section */}
@@ -497,9 +501,6 @@ export function AdminLiveControls({
 
             {/* Voto manual para clubes faltantes */}
             {(() => {
-              const pendingClubs = clubAttendance.filter(
-                (c) => !activeVoteSession.votedClubIds?.includes(c.clubId)
-              );
               if (pendingClubs.length === 0 || activeVoteSession.votingMethod === 'SECRET') return null;
               return (
                 <div className="mt-4 rounded-lg border border-border bg-muted/20 p-3 space-y-3">
@@ -1084,13 +1085,125 @@ export function AdminLiveControls({
 
       {/* Confirm close vote dialog */}
       <Dialog open={confirmCloseVote} onOpenChange={setConfirmCloseVote}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Cerrar votación</DialogTitle>
             <DialogDescription>
-              ¿Estás seguro? No se podrán registrar más votos una vez cerrada.
+              {pendingClubs.length > 0
+                ? `Hay ${pendingClubs.length} clubes que aún no han emitido su voto. Podés registrar sus votos manualmente o finalizar la votación con los votos actuales.`
+                : '¿Estás seguro? No se podrán registrar más votos una vez cerrada.'}
             </DialogDescription>
           </DialogHeader>
+
+          {activeVoteSession && pendingClubs.length > 0 && (
+            <div className="space-y-3 py-2 border-t border-b border-border my-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Clubes pendientes ({pendingClubs.length}):
+              </p>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {pendingClubs.map((club) => (
+                  <div
+                    key={club.clubId}
+                    className="flex items-center justify-between gap-2 border-b border-border/50 pb-2 last:border-0 last:pb-0"
+                  >
+                    <span className="text-xs font-medium truncate flex-1 flex flex-col text-left">
+                      <span>{club.clubName}</span>
+                      <span className={cn(
+                        'text-[10px]',
+                        club.connected ? 'text-success font-medium' : 'text-muted-foreground'
+                      )}>
+                        {club.connected ? '● Conectado (Activo)' : '○ Desconectado (Inactivo)'}
+                      </span>
+                    </span>
+                    {activeVoteSession.votingMethod !== 'SECRET' ? (
+                      activeVoteSession.ballotType === 'CANDIDATE' ? (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Select
+                            onValueChange={async (candidateId) => {
+                              try {
+                                await votingApi.manual(
+                                  meetingId,
+                                  activeVoteSession.id,
+                                  club.clubId,
+                                  candidateId === 'ABSTAIN' ? 'ABSTAIN' : 'YES',
+                                  candidateId === 'ABSTAIN' ? undefined : candidateId,
+                                );
+                                toast.success(`Voto registrado para ${club.clubName}`);
+                              } catch (e) {
+                                toast.error(e instanceof Error ? e.message : 'Error');
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-7 text-xs w-28 shrink-0">
+                              <SelectValue placeholder="Votar" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {activeVoteSession.candidates?.map((cand) => (
+                                <SelectItem key={cand.id} value={cand.id}>
+                                  {cand.displayName}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="ABSTAIN">Abstención</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <div className="flex gap-1 shrink-0">
+                          <Button
+                            size="sm"
+                            className="h-7 px-2 text-[10px] bg-success/15 hover:bg-success/25 text-success border-0 animate-none"
+                            onClick={async () => {
+                              try {
+                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'YES');
+                                toast.success(`A favor registrado para ${club.clubName}`);
+                              } catch (e) {
+                                toast.error(e instanceof Error ? e.message : 'Error');
+                              }
+                            }}
+                          >
+                            Sí
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-7 px-2 text-[10px] bg-destructive/15 hover:bg-destructive/25 text-destructive border-0 animate-none"
+                            onClick={async () => {
+                              try {
+                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'NO');
+                                toast.success(`En contra registrado para ${club.clubName}`);
+                              } catch (e) {
+                                toast.error(e instanceof Error ? e.message : 'Error');
+                              }
+                            }}
+                          >
+                            No
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-7 px-2 text-[10px] bg-muted-foreground/15 hover:bg-muted-foreground/25 text-muted-foreground border-0 animate-none"
+                            onClick={async () => {
+                              try {
+                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'ABSTAIN');
+                                toast.success(`Abstención registrada para ${club.clubName}`);
+                              } catch (e) {
+                                toast.error(e instanceof Error ? e.message : 'Error');
+                              }
+                            }}
+                          >
+                            Abs
+                          </Button>
+                        </div>
+                      )
+                    ) : (
+                      <span className="text-[10px] text-warning italic shrink-0">
+                        Voto Secreto
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmCloseVote(false)}>
               Cancelar
@@ -1100,7 +1213,7 @@ export function AdminLiveControls({
               disabled={closing}
               onClick={() => activeVoteSession && closeVote(activeVoteSession.id)}
             >
-              {closing ? 'Cerrando...' : 'Cerrar votación'}
+              {closing ? 'Cerrando...' : 'Cerrar votación de todas formas'}
             </Button>
           </DialogFooter>
         </DialogContent>

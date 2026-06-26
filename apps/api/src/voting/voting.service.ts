@@ -181,30 +181,7 @@ export class VotingService {
     if (session.status !== VoteSessionStatus.OPEN)
       throw new BadRequestException('La votación ya está cerrada');
 
-    // Enforce: cannot close vote if there are pending present clubs that haven't voted
-    if (session.eligibleClubIds) {
-      const eligible: string[] = JSON.parse(session.eligibleClubIds);
-      const votes = await this.prisma.vote.findMany({
-        where: { voteSessionId },
-        select: { userId: true },
-      });
-      const voterUserIds = votes.map((v) => v.userId);
-      const votedParticipants = await this.prisma.meetingParticipant.findMany({
-        where: {
-          meetingId,
-          userId: { in: voterUserIds },
-          clubId: { in: eligible },
-        },
-        select: { clubId: true },
-      });
-      const votedClubIds = [...new Set(votedParticipants.map((vp) => vp.clubId!).filter(Boolean))];
-      if (votedClubIds.length < eligible.length) {
-        const pendingCount = eligible.length - votedClubIds.length;
-        throw new BadRequestException(
-          `No se puede cerrar la votación hasta que todos los clubes presentes hayan votado. Faltan ${pendingCount} clubes por votar.`,
-        );
-      }
-    }
+
 
     const updated = await this.prisma.voteSession.update({
       where: { id: voteSessionId },
