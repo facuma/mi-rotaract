@@ -396,18 +396,20 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
             }
             return res;
           }).catch(() => null)
-        : this.prisma.voteSession.findFirst({
-            where: { meetingId, status: 'CLOSED' },
-            orderBy: { closedAt: 'desc' },
-            select: { id: true },
-          }).then(async (lastClosed) => {
-            if (!lastClosed) return null;
-            try {
-              return await this.votingService.getResult(lastClosed.id);
-            } catch (e) {
-              return null;
-            }
-          }),
+        : meeting.currentTopicId
+          ? this.prisma.voteSession.findFirst({
+              where: { meetingId, topicId: meeting.currentTopicId, status: 'CLOSED' },
+              orderBy: { closedAt: 'desc' },
+              select: { id: true },
+            }).then(async (lastClosed) => {
+              if (!lastClosed) return null;
+              try {
+                return await this.votingService.getResult(lastClosed.id);
+              } catch (e) {
+                return null;
+              }
+            })
+          : Promise.resolve(null),
       // Timers
       this.prisma.timerSession.findMany({
         where: { meetingId, endedAt: null },
