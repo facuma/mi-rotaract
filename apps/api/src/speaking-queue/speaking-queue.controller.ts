@@ -29,7 +29,7 @@ export class SpeakingQueueController {
     @Body('requestId') requestId: string,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.queueService.cancel(meetingId, requestId, user.id);
+    return this.queueService.cancel(meetingId, requestId, user.id, user.role as Role);
   }
 
   @Get()
@@ -52,7 +52,7 @@ export class SpeakingQueueController {
 
   @Post('current-speaker')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   setCurrentSpeaker(
     @Param('meetingId') meetingId: string,
     @Body('userId') userId: string | null,
@@ -63,7 +63,7 @@ export class SpeakingQueueController {
 
   @Post('next-speaker')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   setNextSpeaker(
     @Param('meetingId') meetingId: string,
     @Body('userId') userId: string | null,

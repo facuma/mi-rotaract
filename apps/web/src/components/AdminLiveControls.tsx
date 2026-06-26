@@ -40,6 +40,7 @@ type ActiveVoteSession = {
   candidates?: { id: string; displayName: string }[];
   votingMethod?: string;
   eligibleClubCount?: number | null;
+  votedClubIds?: string[];
 };
 
 type AdminLiveControlsProps = {
@@ -417,6 +418,141 @@ export function AdminLiveControls({
                 ))}
               </div>
             )}
+
+            {/* Voto manual para clubes faltantes */}
+            {(() => {
+              const pendingClubs = clubAttendance.filter(
+                (c) => !activeVoteSession.votedClubIds?.includes(c.clubId)
+              );
+              if (pendingClubs.length === 0) return null;
+              return (
+                <div className="mt-4 rounded-lg border border-border bg-muted/20 p-3 space-y-3">
+                  <div className="text-xs font-semibold text-muted-foreground">
+                    Clubes pendientes de votación ({pendingClubs.length}):
+                  </div>
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {pendingClubs.map((club) => (
+                      <div
+                        key={club.clubId}
+                        className="flex items-center justify-between gap-2 border-b border-border/50 pb-2 last:border-0 last:pb-0"
+                      >
+                        <span className="text-xs font-medium truncate flex-1">
+                          {club.clubName}
+                          {!club.connected && (
+                            <span className="text-[10px] text-muted-foreground ml-1">
+                              (Desconectado)
+                            </span>
+                          )}
+                        </span>
+                        {activeVoteSession.ballotType === 'CANDIDATE' ? (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Select
+                              onValueChange={async (candidateId) => {
+                                try {
+                                  await votingApi.manual(
+                                    meetingId,
+                                    activeVoteSession.id,
+                                    club.clubId,
+                                    candidateId === 'ABSTAIN' ? 'ABSTAIN' : 'YES',
+                                    candidateId === 'ABSTAIN' ? undefined : candidateId,
+                                  );
+                                  toast.success(`Voto manual registrado para ${club.clubName}`);
+                                } catch (e) {
+                                  toast.error(
+                                    e instanceof Error ? e.message : 'Error al registrar voto',
+                                  );
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-7 text-xs w-36">
+                                <SelectValue placeholder="Registrar voto..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {activeVoteSession.candidates?.map((cand) => (
+                                  <SelectItem key={cand.id} value={cand.id}>
+                                    {cand.displayName}
+                                  </SelectItem>
+                                ))}
+                                <SelectItem value="ABSTAIN">Abstención</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ) : (
+                          <div className="flex gap-1 shrink-0">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-[10px] hover:bg-success/15 hover:text-success"
+                              onClick={async () => {
+                                try {
+                                  await votingApi.manual(
+                                    meetingId,
+                                    activeVoteSession.id,
+                                    club.clubId,
+                                    'YES',
+                                  );
+                                  toast.success(`Voto A favor registrado para ${club.clubName}`);
+                                } catch (e) {
+                                  toast.error(
+                                    e instanceof Error ? e.message : 'Error al registrar voto',
+                                  );
+                                }
+                              }}
+                            >
+                              Sí
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-[10px] hover:bg-destructive/15 hover:text-destructive"
+                              onClick={async () => {
+                                try {
+                                  await votingApi.manual(
+                                    meetingId,
+                                    activeVoteSession.id,
+                                    club.clubId,
+                                    'NO',
+                                  );
+                                  toast.success(`Voto En contra registrado para ${club.clubName}`);
+                                } catch (e) {
+                                  toast.error(
+                                    e instanceof Error ? e.message : 'Error al registrar voto',
+                                  );
+                                }
+                              }}
+                            >
+                              No
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-[10px] hover:bg-muted-foreground/15 text-muted-foreground"
+                              onClick={async () => {
+                                try {
+                                  await votingApi.manual(
+                                    meetingId,
+                                    activeVoteSession.id,
+                                    club.clubId,
+                                    'ABSTAIN',
+                                  );
+                                  toast.success(`Abstención registrada para ${club.clubName}`);
+                                } catch (e) {
+                                  toast.error(
+                                    e instanceof Error ? e.message : 'Error al registrar voto',
+                                  );
+                                }
+                              }}
+                            >
+                              Abs
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         ) : (
           <>

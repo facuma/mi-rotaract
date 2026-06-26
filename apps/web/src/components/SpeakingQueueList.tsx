@@ -66,6 +66,19 @@ export function SpeakingQueueList({
     }
   }
 
+  async function handleCancelRequest(requestId: string) {
+    if (!meetingId) return;
+    setLoading(`cancel-${requestId}`);
+    try {
+      await queueApi.cancel(meetingId, requestId);
+      toast.success('Pedido de palabra cancelado (mano bajada).');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al bajar la mano');
+    } finally {
+      setLoading(null);
+    }
+  }
+
   return (
     <Card className={cn(className)}>
       <CardHeader className="pb-3">
@@ -156,6 +169,15 @@ export function SpeakingQueueList({
                           Siguiente
                         </Button>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        disabled={loading === `cancel-${item.id}`}
+                        onClick={() => handleCancelRequest(item.id)}
+                      >
+                        Bajar mano
+                      </Button>
                     </div>
                   )}
                 </li>

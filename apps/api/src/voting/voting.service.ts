@@ -95,9 +95,19 @@ export class VotingService {
       }
     }
 
-    const connectedClubIds = meeting.isDistrictMeeting
-      ? this.realtime.getConnectedClubIds(meetingId)
-      : [];
+    let eligibleClubIds: string[] = [];
+    if (meeting.isDistrictMeeting) {
+      const attendances = await this.prisma.clubMeetingAttendance.findMany({
+        where: {
+          meetingId,
+          club: {
+            status: 'ACTIVE',
+          },
+        },
+        select: { clubId: true },
+      });
+      eligibleClubIds = attendances.map((a) => a.clubId);
+    }
 
     const session = await this.prisma.voteSession.create({
       data: {
@@ -109,8 +119,8 @@ export class VotingService {
         isElection: options?.isElection ?? (ballotType === BallotType.CANDIDATE),
         electionType: options?.electionType ?? null,
         ballotType,
-        eligibleClubIds: connectedClubIds.length > 0 ? JSON.stringify(connectedClubIds) : null,
-        eligibleClubCount: connectedClubIds.length > 0 ? connectedClubIds.length : null,
+        eligibleClubIds: eligibleClubIds.length > 0 ? JSON.stringify(eligibleClubIds) : null,
+        eligibleClubCount: eligibleClubIds.length > 0 ? eligibleClubIds.length : null,
       },
       include: { topic: true },
     });
@@ -321,6 +331,94 @@ export class VotingService {
     return { ...result, candidateResult };
   }
 
+  async submitManualVote(
+    meetingId: string,
+    voteSessionId: string,
+    actorUserId: string,
+    clubId: string,
+    choice: VoteChoice,
+    candidateId?: string,
+  ) {
+    const actor = await this.prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { role: true },
+    });
+    const isDistrictAdmin =
+      actor?.role === 'SECRETARY' || actor?.role === 'RDR' || actor?.role === 'SUPERADMIN';
+    if (!isDistrictAdmin) {
+      throw new ForbiddenException('Solo los secretarios o el RDR pueden registrar votos manuales');
+    }
+
+    const delegation = await this.prisma.cartaPoder.findFirst({
+      where: { meetingId, clubId, status: 'VERIFIED' },
+      select: { delegateUserId: true },
+    });
+
+    let representativeUserId = delegation?.delegateUserId ?? null;
+    let isDelegate = !!delegation;
+
+    if (!representativeUserId) {
+      const membership = await this.prisma.membership.findFirst({
+        where: { clubId, isPresident: true },
+        select: { userId: true },
+      });
+      representativeUserId = membership?.userId ?? null;
+    }
+
+    if (!representativeUserId) {
+      throw new BadRequestException(
+        'No se encontró un presidente ni delegado verificado para este club',
+      );
+    }
+
+    let participant = await this.prisma.meetingParticipant.findUnique({
+      where: { meetingId_userId: { meetingId, userId: representativeUserId } },
+    });
+
+    if (!participant) {
+      participant = await this.prisma.meetingParticipant.create({
+        data: {
+          meetingId,
+          userId: representativeUserId,
+          clubId,
+          isDelegate,
+          canVote: true,
+          attendanceStatus: 'JOINED',
+          joinedAt: new Date(),
+        },
+      });
+    } else {
+      participant = await this.prisma.meetingParticipant.update({
+        where: { id: participant.id },
+        data: {
+          clubId,
+          isDelegate,
+          canVote: true,
+        },
+      });
+    }
+
+    const voteResult = await this.submitVote(
+      meetingId,
+      voteSessionId,
+      representativeUserId,
+      choice,
+      candidateId,
+    );
+
+    await this.audit.log({
+      meetingId,
+      actorUserId,
+      action: 'vote.manual_cast',
+      entityType: 'Vote',
+      metadata: { clubId, representativeUserId },
+    });
+
+    await this.realtime.broadcastSnapshot(meetingId);
+
+    return voteResult;
+  }
+
   /**
    * Art. 64i: Open a second round (runoff) between the top 2 candidates from a previous round.
    */
@@ -351,7 +449,19 @@ export class VotingService {
     if (!meeting) throw new NotFoundException('Reunión no encontrada');
     if (meeting.isInformationalOnly) throw new BadRequestException('No se puede abrir votación sin quórum');
 
-    const connectedClubIds = meeting.isDistrictMeeting ? this.realtime.getConnectedClubIds(meetingId) : [];
+    let eligibleClubIds: string[] = [];
+    if (meeting.isDistrictMeeting) {
+      const attendances = await this.prisma.clubMeetingAttendance.findMany({
+        where: {
+          meetingId,
+          club: {
+            status: 'ACTIVE',
+          },
+        },
+        select: { clubId: true },
+      });
+      eligibleClubIds = attendances.map((a) => a.clubId);
+    }
 
     const newSession = await this.prisma.voteSession.create({
       data: {
@@ -364,8 +474,8 @@ export class VotingService {
         ballotType: BallotType.CANDIDATE,
         round: prevSession.round + 1,
         previousSessionId,
-        eligibleClubIds: connectedClubIds.length > 0 ? JSON.stringify(connectedClubIds) : null,
-        eligibleClubCount: connectedClubIds.length > 0 ? connectedClubIds.length : null,
+        eligibleClubIds: eligibleClubIds.length > 0 ? JSON.stringify(eligibleClubIds) : null,
+        eligibleClubCount: eligibleClubIds.length > 0 ? eligibleClubIds.length : null,
       },
     });
 

@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useMeetingRoom } from '@/hooks/useMeetingRoom';
+import { useAuthState } from '@/context/AuthContext';
 import { VoteActionPanel } from '@/components/VoteActionPanel';
 import { VoteResultSummary } from '@/components/VoteResultSummary';
 import { CurrentTopicCard } from '@/components/CurrentTopicCard';
@@ -19,6 +20,14 @@ export default function ParticipantLivePage() {
   const params = useParams();
   const meetingId = params.id as string;
   const { snapshot, voteResult, connected, joinError } = useMeetingRoom(meetingId);
+  const { user } = useAuthState();
+
+  const ownRequest =
+    user && snapshot?.speakingQueue
+      ? snapshot.speakingQueue.find((req) => req.userId === user.id)
+      : null;
+  const isRequested = !!ownRequest;
+  const requestId = ownRequest?.id;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -102,7 +111,11 @@ export default function ParticipantLivePage() {
 
             {/* Request to speak */}
             {(snapshot.status === 'LIVE' || snapshot.status === 'PAUSED') && (
-              <RequestToSpeakButton meetingId={meetingId} />
+              <RequestToSpeakButton
+                meetingId={meetingId}
+                isRequested={isRequested}
+                requestId={requestId}
+              />
             )}
 
             {/* Speaking queue */}

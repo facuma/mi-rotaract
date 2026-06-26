@@ -133,30 +133,96 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
     const meeting = await this.prisma.meeting.findUnique({
       where: { id: meetingId },
-      select: { id: true },
+      select: { id: true, isDistrictMeeting: true },
     });
     if (!meeting) {
       return { event: 'error', data: { message: 'Reunión no encontrada' } };
     }
-    const isParticipant = await this.prisma.meetingParticipant.findFirst({
-      where: { meetingId, userId },
-    });
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { role: true },
     });
-    const isModerator = user?.role === 'SECRETARY' || user?.role === 'PRESIDENT' || user?.role === 'RDR';
-    if (!isParticipant && !isModerator) {
-      return { event: 'error', data: { message: 'No tenés acceso a esta reunión' } };
+    const isDistrictAdmin = user?.role === 'SECRETARY' || user?.role === 'RDR' || user?.role === 'SUPERADMIN';
+
+    let targetClubId: string | null = null;
+    let isDelegate = false;
+
+    if (meeting.isDistrictMeeting) {
+      if (!isDistrictAdmin) {
+        // Check if user is delegate
+        const delegationAsDelegate = await this.prisma.cartaPoder.findFirst({
+          where: { meetingId, delegateUserId: userId, status: 'VERIFIED' },
+        });
+
+        // Check user membership / presidency
+        const membership = await this.prisma.membership.findFirst({
+          where: { userId },
+          select: { clubId: true, isPresident: true },
+        });
+        const isPresidentOfClub = membership?.isPresident ?? false;
+        const userClubId = membership?.clubId ?? null;
+
+        const delegationForClub = userClubId
+          ? await this.prisma.cartaPoder.findFirst({
+              where: { meetingId, clubId: userClubId, status: 'VERIFIED' },
+            })
+          : null;
+
+        if (delegationAsDelegate) {
+          isDelegate = true;
+          targetClubId = delegationAsDelegate.clubId;
+        } else if (isPresidentOfClub && !delegationForClub) {
+          isDelegate = false;
+          targetClubId = userClubId;
+        } else if (isPresidentOfClub && delegationForClub) {
+          return { event: 'error', data: { message: 'El acceso ha sido delegado para este club' } };
+        } else {
+          return { event: 'error', data: { message: 'Solo el presidente o el delegado verificado pueden ingresar' } };
+        }
+      }
+    } else {
+      const isParticipant = await this.prisma.meetingParticipant.findFirst({
+        where: { meetingId, userId },
+      });
+      const isModerator = user?.role === 'SECRETARY' || user?.role === 'PRESIDENT' || user?.role === 'RDR' || user?.role === 'SUPERADMIN';
+      if (!isParticipant && !isModerator) {
+        return { event: 'error', data: { message: 'No tenés acceso a esta reunión' } };
+      }
     }
+
     client.data = client.data ?? {};
     client.data.userId = userId;
     if (!Array.isArray(client.data.meetingIds)) client.data.meetingIds = [];
     if (!client.data.meetingIds.includes(meetingId)) client.data.meetingIds.push(meetingId);
     client.join(MEETING_ROOM_PREFIX + meetingId);
-    const participant = await this.prisma.meetingParticipant.findUnique({
+
+    let participant = await this.prisma.meetingParticipant.findUnique({
       where: { meetingId_userId: { meetingId, userId } },
     });
+
+    if (!participant && targetClubId) {
+      participant = await this.prisma.meetingParticipant.create({
+        data: {
+          meetingId,
+          userId,
+          clubId: targetClubId,
+          isDelegate: isDelegate,
+          canVote: true,
+          attendanceStatus: 'JOINED',
+          joinedAt: new Date(),
+        },
+      });
+    } else if (participant && targetClubId) {
+      participant = await this.prisma.meetingParticipant.update({
+        where: { id: participant.id },
+        data: {
+          clubId: targetClubId,
+          isDelegate: isDelegate,
+          canVote: true,
+        },
+      });
+    }
+
     if (participant) {
       // Resolve clubId if missing
       let clubId = participant.clubId;
@@ -301,7 +367,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const openVoteSession = meeting.voteSessions[0];
 
     // Run all independent queries in parallel
-    const [ownVote, voteResult, activeTimers, currentSpeaker, nextSpeaker] = await Promise.all([
+    const [ownVote, voteResult, activeTimers, currentSpeaker, nextSpeaker, votedClubs] = await Promise.all([
       // Own vote
       userId && openVoteSession
         ? this.prisma.vote.findUnique({
@@ -345,7 +411,18 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       meeting.nextSpeakerId
         ? this.prisma.user.findUnique({ where: { id: meeting.nextSpeakerId }, select: { id: true, fullName: true } })
         : Promise.resolve(null),
+      // Voted clubs in active session
+      openVoteSession
+        ? this.prisma.vote.findMany({
+            where: { voteSessionId: openVoteSession.id, clubId: { not: null } },
+            select: { clubId: true },
+          })
+        : Promise.resolve([]),
     ]);
+
+    const votedClubIds = votedClubs
+      .map((vc) => vc.clubId)
+      .filter((id): id is string => typeof id === 'string');
 
     const now = Date.now();
     const timers = activeTimers.map((t) => {
@@ -420,6 +497,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
             isElection: openVoteSession.isElection,
             electionType: openVoteSession.electionType,
             round: openVoteSession.round,
+            votedClubIds,
             candidates: openVoteSession.candidates.map((c) => ({
               id: c.id,
               displayName: c.displayName,

@@ -36,7 +36,12 @@ export class QuorumService {
     const required = meeting?.quorumRequired ?? await this.calculateQuorumRequirement();
 
     const presentClubs = await this.prisma.clubMeetingAttendance.count({
-      where: { meetingId },
+      where: {
+        meetingId,
+        club: {
+          status: 'ACTIVE',
+        },
+      },
     });
 
     const met = presentClubs >= required;

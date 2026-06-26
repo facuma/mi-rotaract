@@ -167,6 +167,17 @@ export const votingApi = {
   current: (meetingId: string) => api<unknown>(`/meetings/${meetingId}/vote/current`),
   result: (meetingId: string, voteSessionId: string) =>
     api<unknown>(`/meetings/${meetingId}/vote/${voteSessionId}/result`),
+  manual: (
+    meetingId: string,
+    voteSessionId: string,
+    clubId: string,
+    choice: 'YES' | 'NO' | 'ABSTAIN',
+    candidateId?: string,
+  ) =>
+    api<unknown>(`/meetings/${meetingId}/vote/manual`, {
+      method: 'POST',
+      body: JSON.stringify({ voteSessionId, clubId, choice, candidateId }),
+    }),
 };
 
 export const cartaPoderApi = {

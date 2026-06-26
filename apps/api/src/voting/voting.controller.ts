@@ -17,7 +17,7 @@ export class VotingController {
 
   @Post('vote/open')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   open(
     @Param('meetingId') meetingId: string,
     @Body() body: {
@@ -43,7 +43,7 @@ export class VotingController {
 
   @Post('vote/close')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   close(
     @Param('meetingId') meetingId: string,
     @Body('voteSessionId') voteSessionId: string,
@@ -81,7 +81,7 @@ export class VotingController {
   /** Art. 64i: Open second round (runoff) between top 2 candidates */
   @Post('vote/runoff')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   openRunoff(
     @Param('meetingId') meetingId: string,
     @Body('previousSessionId') previousSessionId: string,
@@ -99,6 +99,20 @@ export class VotingController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.votingService.submitVote(meetingId, voteSessionId, user.id, choice, candidateId);
+  }
+
+  @Post('vote/manual')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY, Role.RDR)
+  submitManual(
+    @Param('meetingId') meetingId: string,
+    @Body('voteSessionId') voteSessionId: string,
+    @Body('clubId') clubId: string,
+    @Body('choice') choice: VoteChoice,
+    @Body('candidateId') candidateId: string | undefined,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.votingService.submitManualVote(meetingId, voteSessionId, user.id, clubId, choice, candidateId);
   }
 
   @Get('vote/current')

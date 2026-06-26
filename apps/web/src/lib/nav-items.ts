@@ -71,7 +71,7 @@ export const NAV_ITEMS: NavItem[] = [
         href: '/admin/meetings',
         label: 'Administrar',
         icon: 'settings',
-        roles: ['SECRETARY', 'PRESIDENT', 'RDR'],
+        roles: ['SECRETARY', 'RDR'],
       },
       { href: '/history', label: 'Historial', icon: 'history' },
     ],

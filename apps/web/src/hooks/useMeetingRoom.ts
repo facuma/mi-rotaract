@@ -50,6 +50,7 @@ export type MeetingSnapshot = {
     round?: number;
     candidates?: VoteCandidate[];
     eligibleClubCount?: number | null;
+    votedClubIds?: string[];
   } | null;
   speakingQueue?: { id: string; userId: string; fullName: string; position: number; status?: string }[];
   currentSpeaker?: { id: string; fullName: string } | null;
@@ -126,6 +127,7 @@ function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
     round?: number;
     candidates?: VoteCandidate[];
     eligibleClubCount?: number | null;
+    votedClubIds?: string[];
   } | undefined;
   const quorum = data.quorum as MeetingSnapshot['quorum'] ?? null;
   const timers = (data.timers as Array<{ id: string; type: string; plannedDurationSec: number; elapsedSec?: number }>) ?? [];
@@ -154,6 +156,7 @@ function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
           round: activeVote.round,
           candidates: activeVote.candidates ?? [],
           eligibleClubCount: activeVote.eligibleClubCount,
+          votedClubIds: activeVote.votedClubIds ?? [],
         }
       : null,
     quorum,

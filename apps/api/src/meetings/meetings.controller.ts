@@ -39,7 +39,7 @@ export class MeetingsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true }))
   create(@Body() dto: CreateMeetingDto, @CurrentUser() user: CurrentUserPayload) {
     return this.meetingsService.create(dto, user.id);
@@ -80,7 +80,7 @@ export class MeetingsController {
 
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true }))
   update(
     @Param('id') id: string,
@@ -92,28 +92,28 @@ export class MeetingsController {
 
   @Post(':id/start')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   start(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.meetingsService.start(id, user.id);
   }
 
   @Post(':id/pause')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   pause(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.meetingsService.pause(id, user.id);
   }
 
   @Post(':id/resume')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   resume(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.meetingsService.resume(id, user.id);
   }
 
   @Post(':id/finish')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   finish(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.meetingsService.finish(id, user.id);
   }
@@ -127,7 +127,7 @@ export class MeetingsController {
 
   @Post(':id/schedule')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   schedule(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.meetingsService.schedule(id, user.id);
   }
@@ -162,7 +162,7 @@ export class MeetingsController {
 
   @Post(':id/participants')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   @UsePipes(new ValidationPipe({ whitelist: true }))
   assignParticipants(
     @Param('id') id: string,
@@ -181,7 +181,7 @@ export class MeetingsController {
 
   @Post(':id/attachments')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   @UseInterceptors(FileInterceptor('file'))
   async uploadAttachment(
     @Param('id') id: string,
@@ -200,7 +200,7 @@ export class MeetingsController {
 
   @Delete(':id/attachments/:attachmentId')
   @UseGuards(RolesGuard)
-  @Roles(Role.SECRETARY, Role.PRESIDENT, Role.RDR)
+  @Roles(Role.SECRETARY, Role.RDR)
   deleteAttachment(
     @Param('id') meetingId: string,
     @Param('attachmentId') attachmentId: string,

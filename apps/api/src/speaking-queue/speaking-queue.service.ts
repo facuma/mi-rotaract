@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { MeetingStatus, SpeakingRequestStatus } from '@prisma/client';
+import { MeetingStatus, Role, SpeakingRequestStatus } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -42,12 +42,15 @@ export class SpeakingQueueService {
     return req;
   }
 
-  async cancel(meetingId: string, requestId: string, userId: string) {
+  async cancel(meetingId: string, requestId: string, userId: string, userRole?: Role) {
     const req = await this.prisma.speakingRequest.findFirst({
       where: { id: requestId, meetingId },
     });
     if (!req) throw new NotFoundException('Solicitud no encontrada');
-    if (req.userId !== userId) throw new BadRequestException('No podés cancelar esta solicitud');
+    const isModerator =
+      userRole === Role.SECRETARY || userRole === Role.RDR || userRole === Role.SUPERADMIN;
+    if (req.userId !== userId && !isModerator)
+      throw new BadRequestException('No podés cancelar esta solicitud');
     if (req.status !== SpeakingRequestStatus.PENDING)
       throw new BadRequestException('Solo se puede cancelar una solicitud pendiente');
     await this.prisma.speakingRequest.update({
