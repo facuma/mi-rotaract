@@ -18,7 +18,7 @@ export class DistrictGuard implements CanActivate {
     if (!user) {
       throw new ForbiddenException('No autenticado');
     }
-    if (user.role !== Role.SECRETARY && user.role !== Role.RDR) {
+    if (user.role !== Role.SECRETARY && user.role !== Role.RDR && user.role !== Role.SUPERADMIN) {
       throw new ForbiddenException('Acceso restringido al equipo distrital');
     }
     return true;

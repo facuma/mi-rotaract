@@ -29,7 +29,7 @@ export class OwnerOrDistritalGuard implements CanActivate {
       throw new ForbiddenException('ID de oportunidad no especificado');
     }
 
-    if (user.role === Role.SECRETARY || user.role === Role.PRESIDENT || user.role === Role.RDR) {
+    if (user.role === Role.SECRETARY || user.role === Role.PRESIDENT || user.role === Role.RDR || user.role === Role.SUPERADMIN) {
       return true;
     }
 
