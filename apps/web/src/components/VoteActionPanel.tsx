@@ -77,30 +77,81 @@ export function VoteActionPanel({
           {voted ? (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Tu voto fue registrado.</p>
-              <div className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary">
-                Candidato seleccionado: {votedCandidate?.displayName ?? voted.candidateId}
+              {candidates.length === 1 ? (
+                <div className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm space-y-1">
+                  <p className="font-semibold text-primary">Candidato: {candidates[0]?.displayName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Voto: <span className="font-bold uppercase">{voted.choice === 'YES' ? 'A favor' : voted.choice === 'NO' ? 'En contra' : 'Abstención'}</span>
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary">
+                  {voted.choice === 'ABSTAIN' ? 'Voto registrado: Abstención' : `Candidato seleccionado: ${votedCandidate?.displayName ?? voted.candidateId}`}
+                </div>
+              )}
+            </div>
+          ) : candidates.length === 1 ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border bg-background p-3 text-center">
+                <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider">Candidato Único</p>
+                <h4 className="font-bold text-base text-foreground mt-1">{candidates[0]?.displayName}</h4>
+              </div>
+              <p className="text-xs text-muted-foreground text-center">Emití tu voto sobre esta opción:</p>
+              <div className="grid grid-cols-3 gap-3">
+                {VOTE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.choice}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => submitChoice(opt.choice, candidates[0].id)}
+                    className={cn(
+                      'flex flex-col items-center gap-2 rounded-xl border p-4 text-xs font-semibold transition-all active:scale-95',
+                      'cursor-pointer disabled:cursor-wait disabled:opacity-60',
+                      opt.colors,
+                    )}
+                  >
+                    <span className="text-2xl">{opt.icon}</span>
+                    <span>{opt.label}</span>
+                  </button>
+                ))}
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground mb-3">Seleccioná un candidato para emitir tu voto:</p>
-              {candidates.map((c, i) => (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground mb-1">Seleccioná un candidato o abstención:</p>
+              <div className="space-y-2">
+                {candidates.map((c, i) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => submitChoice('YES', c.id)}
+                    className={cn(
+                      'w-full flex items-center gap-3 rounded-xl border p-4 text-sm font-medium transition-all active:scale-[0.98] text-left',
+                      'bg-muted/30 border-border hover:bg-primary/10 hover:border-primary/40 cursor-pointer disabled:cursor-wait disabled:opacity-60',
+                    )}
+                  >
+                    <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary shrink-0">
+                      {String.fromCharCode(65 + i)}
+                    </span>
+                    <span className="flex-1">{c.displayName}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="pt-2 border-t border-border/60">
                 <button
-                  key={c.id}
                   type="button"
                   disabled={loading}
-                  onClick={() => submitChoice('YES', c.id)}
+                  onClick={() => submitChoice('ABSTAIN')}
                   className={cn(
-                    'w-full flex items-center gap-3 rounded-xl border p-4 text-sm font-medium transition-all active:scale-[0.98] text-left',
-                    'bg-muted/30 border-border hover:bg-primary/10 hover:border-primary/40 cursor-pointer disabled:cursor-wait disabled:opacity-60',
+                    'w-full flex items-center justify-center gap-2 rounded-xl border p-3 text-xs font-bold transition-all active:scale-[0.98]',
+                    'bg-muted border-border hover:bg-muted/80 text-muted-foreground cursor-pointer disabled:cursor-wait disabled:opacity-60',
                   )}
                 >
-                  <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary shrink-0">
-                    {String.fromCharCode(65 + i)}
-                  </span>
-                  <span className="flex-1">{c.displayName}</span>
+                  <span className="text-base">—</span>
+                  <span>Abstención</span>
                 </button>
-              ))}
+              </div>
             </div>
           )}
         </CardContent>

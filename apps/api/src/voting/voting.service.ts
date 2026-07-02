@@ -267,8 +267,8 @@ export class VotingService {
       );
     }
 
-    // For candidate votes, validate candidateId
-    if (session.ballotType === BallotType.CANDIDATE) {
+    // For candidate votes, validate candidateId (only if choice is not ABSTAIN)
+    if (session.ballotType === BallotType.CANDIDATE && choice !== VoteChoice.ABSTAIN) {
       if (!candidateId) throw new BadRequestException('Debe seleccionar un candidato');
       const candidate = await this.prisma.voteCandidate.findFirst({
         where: { id: candidateId, voteSessionId },
@@ -332,8 +332,14 @@ export class VotingService {
       }
     }
 
-    // For candidate votes, choice is always YES (candidateId identifies the choice)
-    const effectiveChoice = session.ballotType === BallotType.CANDIDATE ? VoteChoice.YES : choice;
+    // For candidate votes, choice is YES for multi-candidate elections, or the actual choice (YES/NO/ABSTAIN) for single-candidate elections.
+    let effectiveChoice = choice;
+    if (session.ballotType === BallotType.CANDIDATE) {
+      const candidateCount = await this.prisma.voteCandidate.count({ where: { voteSessionId } });
+      if (candidateCount > 1) {
+        effectiveChoice = choice === VoteChoice.ABSTAIN ? VoteChoice.ABSTAIN : VoteChoice.YES;
+      }
+    }
 
     // For secret votes, do not record the clubId on the Vote record
     const voteClubId = session.votingMethod === VotingMethod.SECRET ? null : clubId;
@@ -542,7 +548,7 @@ export class VotingService {
     // Find top 2 vote-getters
     const voteCounts = await this.prisma.vote.groupBy({
       by: ['candidateId'],
-      where: { voteSessionId: previousSessionId, candidateId: { not: null } },
+      where: { voteSessionId: previousSessionId, candidateId: { not: null }, choice: VoteChoice.YES },
       _count: { candidateId: true },
     });
     voteCounts.sort((a, b) => b._count.candidateId - a._count.candidateId);
@@ -769,7 +775,7 @@ export class VotingService {
 
     const voteCounts = await this.prisma.vote.groupBy({
       by: ['candidateId'],
-      where: { voteSessionId, candidateId: { not: null } },
+      where: { voteSessionId, candidateId: { not: null }, choice: VoteChoice.YES },
       _count: { candidateId: true },
     });
 

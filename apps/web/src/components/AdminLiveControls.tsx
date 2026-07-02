@@ -684,7 +684,7 @@ export function AdminVotingControl({
                           {club.connected ? '● En línea' : '○ Offline'}
                         </span>
                       </span>
-                      {activeVoteSession.ballotType === 'CANDIDATE' ? (
+                      {activeVoteSession.ballotType === 'CANDIDATE' && (activeVoteSession.candidates?.length ?? 0) > 1 ? (
                         <Select
                           onValueChange={async (candidateId) => {
                             try {
@@ -720,7 +720,8 @@ export function AdminVotingControl({
                             className="h-6 px-2 text-[10px] bg-success/15 hover:bg-success/25 text-success border-0 animate-none"
                             onClick={async () => {
                               try {
-                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'YES');
+                                const candId = activeVoteSession.ballotType === 'CANDIDATE' && activeVoteSession.candidates?.[0]?.id || undefined;
+                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'YES', candId);
                                 toast.success(`A favor registrado para ${club.clubName}`);
                               } catch (e) {
                                 toast.error(e instanceof Error ? e.message : 'Error');
@@ -734,7 +735,8 @@ export function AdminVotingControl({
                             className="h-6 px-2 text-[10px] bg-destructive/15 hover:bg-destructive/25 text-destructive border-0 animate-none"
                             onClick={async () => {
                               try {
-                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'NO');
+                                const candId = activeVoteSession.ballotType === 'CANDIDATE' && activeVoteSession.candidates?.[0]?.id || undefined;
+                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'NO', candId);
                                 toast.success(`En contra registrado para ${club.clubName}`);
                               } catch (e) {
                                 toast.error(e instanceof Error ? e.message : 'Error');
@@ -748,7 +750,8 @@ export function AdminVotingControl({
                             className="h-6 px-2 text-[10px] bg-muted-foreground/15 hover:bg-muted-foreground/25 text-muted-foreground border-0 animate-none"
                             onClick={async () => {
                               try {
-                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'ABSTAIN');
+                                const candId = activeVoteSession.ballotType === 'CANDIDATE' && activeVoteSession.candidates?.[0]?.id || undefined;
+                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'ABSTAIN', candId);
                                 toast.success(`Abstención registrada para ${club.clubName}`);
                               } catch (e) {
                                 toast.error(e instanceof Error ? e.message : 'Error');
@@ -903,8 +906,8 @@ export function AdminVotingControl({
                       } else {
                         setBallotType('CANDIDATE');
                         setRequiredMajority('ABSOLUTE');
-                        if (candidates.length < 2) {
-                          setCandidates([{ displayName: '' }, { displayName: '' }]);
+                        if (candidates.length < 1) {
+                          setCandidates([{ displayName: '' }]);
                         }
                       }
                     }}
@@ -931,30 +934,26 @@ export function AdminVotingControl({
                         {candidates.map((c, idx) => (
                           <div key={idx} className="flex gap-2 items-center">
                             <span className="text-xs font-bold text-primary w-4">{String.fromCharCode(65 + idx)}</span>
-                            <Select
-                              value={c.userId || '__none__'}
-                              onValueChange={(v) => {
-                                const selected = availableUsers.find((u) => u.id === v);
+                            <Input
+                              placeholder={`Nombre del candidato ${idx + 1}...`}
+                              value={c.displayName}
+                              onChange={(e) => {
                                 const next = [...candidates];
-                                next[idx] = {
-                                  displayName: selected?.fullName || '',
-                                  userId: selected?.id || null,
-                                };
+                                next[idx] = { displayName: e.target.value, userId: null };
                                 setCandidates(next);
                               }}
-                            >
-                              <SelectTrigger className="h-8 text-xs flex-1">
-                                <SelectValue placeholder="Seleccionar usuario" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">— Seleccionar —</SelectItem>
-                                {availableUsers.map((u) => (
-                                  <SelectItem key={u.id} value={u.id}>
-                                    {u.fullName} ({u.email})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              className="h-8 text-xs flex-1"
+                            />
+                            {candidates.length > 1 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setCandidates(candidates.filter((_, i) => i !== idx))}
+                                className="h-8 px-2 text-destructive hover:bg-destructive/5 shrink-0"
+                              >
+                                Quitar
+                              </Button>
+                            )}
                           </div>
                         ))}
                         <Button
@@ -991,6 +990,16 @@ export function AdminVotingControl({
                                 ))}
                               </SelectContent>
                             </Select>
+                            {candidates.length > 1 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setCandidates(candidates.filter((_, i) => i !== idx))}
+                                className="h-8 px-2 text-destructive hover:bg-destructive/5 shrink-0"
+                              >
+                                Quitar
+                              </Button>
+                            )}
                           </div>
                         ))}
                         <Button
@@ -1017,7 +1026,7 @@ export function AdminVotingControl({
                               }}
                               className="h-8 text-xs flex-1"
                             />
-                            {candidates.length > 2 && (
+                            {candidates.length > 1 && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1123,7 +1132,7 @@ export function AdminVotingControl({
                       </span>
                     </span>
                     {activeVoteSession.votingMethod !== 'SECRET' ? (
-                      activeVoteSession.ballotType === 'CANDIDATE' ? (
+                      activeVoteSession.ballotType === 'CANDIDATE' && (activeVoteSession.candidates?.length ?? 0) > 1 ? (
                         <div className="flex items-center gap-1.5 shrink-0">
                           <Select
                             onValueChange={async (candidateId) => {
@@ -1161,7 +1170,8 @@ export function AdminVotingControl({
                             className="h-7 px-2 text-[10px] bg-success/15 hover:bg-success/25 text-success border-0 animate-none"
                             onClick={async () => {
                               try {
-                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'YES');
+                                const candId = activeVoteSession.ballotType === 'CANDIDATE' && activeVoteSession.candidates?.[0]?.id || undefined;
+                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'YES', candId);
                                 toast.success(`A favor registrado para ${club.clubName}`);
                               } catch (e) {
                                 toast.error(e instanceof Error ? e.message : 'Error');
@@ -1175,7 +1185,8 @@ export function AdminVotingControl({
                             className="h-7 px-2 text-[10px] bg-destructive/15 hover:bg-destructive/25 text-destructive border-0 animate-none"
                             onClick={async () => {
                               try {
-                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'NO');
+                                const candId = activeVoteSession.ballotType === 'CANDIDATE' && activeVoteSession.candidates?.[0]?.id || undefined;
+                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'NO', candId);
                                 toast.success(`En contra registrado para ${club.clubName}`);
                               } catch (e) {
                                 toast.error(e instanceof Error ? e.message : 'Error');
@@ -1189,7 +1200,8 @@ export function AdminVotingControl({
                             className="h-7 px-2 text-[10px] bg-muted-foreground/15 hover:bg-muted-foreground/25 text-muted-foreground border-0 animate-none"
                             onClick={async () => {
                               try {
-                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'ABSTAIN');
+                                const candId = activeVoteSession.ballotType === 'CANDIDATE' && activeVoteSession.candidates?.[0]?.id || undefined;
+                                await votingApi.manual(meetingId, activeVoteSession.id, club.clubId, 'ABSTAIN', candId);
                                 toast.success(`Abstención registrada para ${club.clubName}`);
                               } catch (e) {
                                 toast.error(e instanceof Error ? e.message : 'Error');
