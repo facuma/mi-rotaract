@@ -149,74 +149,84 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     if (meeting.isDistrictMeeting) {
       if (!isDistrictAdmin) {
-        // Check if user is delegate
-        const delegationAsDelegate = await this.prisma.cartaPoder.findFirst({
-          where: { meetingId, delegateUserId: userId, status: 'VERIFIED' },
+        // Check if user is already a registered participant in the meeting
+        const existingParticipant = await this.prisma.meetingParticipant.findUnique({
+          where: { meetingId_userId: { meetingId, userId } },
         });
 
-        // Check user membership / presidency
-        const membership = await this.prisma.membership.findFirst({
-          where: { userId },
-          select: { clubId: true, isPresident: true },
-        });
-        let isPresidentOfClub = membership?.isPresident ?? false;
-        const userClubId = membership?.clubId ?? null;
-
-        if (!isPresidentOfClub && userClubId) {
-          const member = await this.prisma.member.findFirst({
-            where: { userId, clubId: userClubId, deletedAt: null },
+        if (existingParticipant) {
+          isDelegate = existingParticipant.isDelegate;
+          targetClubId = existingParticipant.clubId;
+        } else {
+          // Check if user is delegate
+          const delegationAsDelegate = await this.prisma.cartaPoder.findFirst({
+            where: { meetingId, delegateUserId: userId, status: 'VERIFIED' },
           });
-          if (member) {
-            const meetingDate = meeting.scheduledAt || new Date();
-            const meetingPeriod = await this.prisma.districtPeriod.findFirst({
-              where: {
-                startDate: { lte: meetingDate },
-                endDate: { gte: meetingDate },
-              },
-            });
-            const currentPeriod = await this.prisma.districtPeriod.findFirst({
-              where: { isCurrent: true },
-            });
-            const periodIds = [meetingPeriod?.id, currentPeriod?.id].filter((id): id is string => !!id);
-            const nextPeriod = await this.prisma.districtPeriod.findFirst({
-              where: {
-                startDate: { gt: currentPeriod?.endDate || new Date() },
-              },
-              orderBy: { startDate: 'asc' },
-            });
-            if (nextPeriod) periodIds.push(nextPeriod.id);
-            const uniquePeriodIds = Array.from(new Set(periodIds));
 
-            const presidency = await this.prisma.clubPresidency.findFirst({
-              where: {
-                clubId: userClubId,
-                memberId: member.id,
-                periodId: { in: uniquePeriodIds },
-                status: { in: ['ACTIVE', 'ELECTED'] },
-              },
+          // Check user membership / presidency
+          const membership = await this.prisma.membership.findFirst({
+            where: { userId },
+            select: { clubId: true, isPresident: true },
+          });
+          let isPresidentOfClub = membership?.isPresident ?? false;
+          const userClubId = membership?.clubId ?? null;
+
+          if (!isPresidentOfClub && userClubId) {
+            const member = await this.prisma.member.findFirst({
+              where: { userId, clubId: userClubId, deletedAt: null },
             });
-            if (presidency) {
-              isPresidentOfClub = true;
+            if (member) {
+              const meetingDate = meeting.scheduledAt || new Date();
+              const meetingPeriod = await this.prisma.districtPeriod.findFirst({
+                where: {
+                  startDate: { lte: meetingDate },
+                  endDate: { gte: meetingDate },
+                },
+              });
+              const currentPeriod = await this.prisma.districtPeriod.findFirst({
+                where: { isCurrent: true },
+              });
+              const periodIds = [meetingPeriod?.id, currentPeriod?.id].filter((id): id is string => !!id);
+              const nextPeriod = await this.prisma.districtPeriod.findFirst({
+                where: {
+                  startDate: { gt: currentPeriod?.endDate || new Date() },
+                },
+                orderBy: { startDate: 'asc' },
+              });
+              if (nextPeriod) periodIds.push(nextPeriod.id);
+              const uniquePeriodIds = Array.from(new Set(periodIds));
+
+              const presidency = await this.prisma.clubPresidency.findFirst({
+                where: {
+                  clubId: userClubId,
+                  memberId: member.id,
+                  periodId: { in: uniquePeriodIds },
+                  status: { in: ['ACTIVE', 'ELECTED'] },
+                },
+              });
+              if (presidency) {
+                isPresidentOfClub = true;
+              }
             }
           }
-        }
 
-        const delegationForClub = userClubId
-          ? await this.prisma.cartaPoder.findFirst({
-              where: { meetingId, clubId: userClubId, status: 'VERIFIED' },
-            })
-          : null;
+          const delegationForClub = userClubId
+            ? await this.prisma.cartaPoder.findFirst({
+                where: { meetingId, clubId: userClubId, status: 'VERIFIED' },
+              })
+            : null;
 
-        if (delegationAsDelegate) {
-          isDelegate = true;
-          targetClubId = delegationAsDelegate.clubId;
-        } else if (isPresidentOfClub && !delegationForClub) {
-          isDelegate = false;
-          targetClubId = userClubId;
-        } else if (isPresidentOfClub && delegationForClub) {
-          return { event: 'error', data: { message: 'El acceso ha sido delegado para este club' } };
-        } else {
-          return { event: 'error', data: { message: 'Solo el presidente o el delegado verificado pueden ingresar' } };
+          if (delegationAsDelegate) {
+            isDelegate = true;
+            targetClubId = delegationAsDelegate.clubId;
+          } else if (isPresidentOfClub && !delegationForClub) {
+            isDelegate = false;
+            targetClubId = userClubId;
+          } else if (isPresidentOfClub && delegationForClub) {
+            return { event: 'error', data: { message: 'El acceso ha sido delegado para este club' } };
+          } else {
+            return { event: 'error', data: { message: 'Solo el presidente o el delegado verificado pueden ingresar' } };
+          }
         }
       }
     } else {
