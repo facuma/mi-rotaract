@@ -215,6 +215,7 @@ function MembershipsDialog({
   const [selectedClubId, setSelectedClubId] = useState<string>('');
   const [adding, setAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [actioningId, setActioningId] = useState<string | null>(null);
 
   useEffect(() => {
     setMemberships(user.memberships);
@@ -254,6 +255,26 @@ function MembershipsDialog({
     }
   };
 
+  const handleMakePresident = async (clubId: string) => {
+    setActioningId(clubId);
+    try {
+      await usersApi.setPresident(user.id, clubId);
+      toast.success('Promovido/a a presidente actual del club');
+      setMemberships((prev) =>
+        prev.map((m) =>
+          m.clubId === clubId
+            ? { ...m, isPresident: true, title: 'Presidente' }
+            : { ...m, isPresident: m.isPresident ? false : m.isPresident }
+        )
+      );
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al promover');
+    } finally {
+      setActioningId(null);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-lg">
@@ -284,15 +305,28 @@ function MembershipsDialog({
                       {m.title && ` · ${m.title}`}
                     </p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-destructive hover:text-destructive"
-                    disabled={removingId === m.clubId}
-                    onClick={() => handleRemove(m.clubId)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    {!m.isPresident && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs font-semibold px-2"
+                        onClick={() => handleMakePresident(m.clubId)}
+                        disabled={actioningId !== null || removingId !== null}
+                      >
+                        Hacer Presidente
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive"
+                      disabled={removingId === m.clubId || actioningId !== null}
+                      onClick={() => handleRemove(m.clubId)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

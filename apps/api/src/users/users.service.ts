@@ -364,6 +364,102 @@ export class UsersService {
     return { message: 'Membresía desactivada' };
   }
 
+  async setAsPresident(userId: string, clubId: string, actorUserId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, fullName: true, email: true },
+    });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+
+    const club = await this.prisma.club.findUnique({
+      where: { id: clubId },
+    });
+    if (!club) throw new NotFoundException('Club no encontrado');
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Find or create Member record for this user in this club
+      let member = await tx.member.findFirst({
+        where: { clubId, userId },
+      });
+      if (!member) {
+        member = await tx.member.findFirst({
+          where: { clubId, email: user.email, deletedAt: null },
+        });
+      }
+
+      const parts = user.fullName.trim().split(/\s+/);
+      const firstName = parts.length <= 1 ? user.fullName : parts.slice(0, -1).join(' ');
+      const lastName = parts.length <= 1 ? '' : parts[parts.length - 1];
+
+      if (!member) {
+        member = await tx.member.create({
+          data: {
+            clubId,
+            userId,
+            firstName,
+            lastName,
+            email: user.email,
+            status: 'ACTIVE',
+            isPresident: true,
+            title: 'Presidente',
+            joinedAt: new Date(),
+          },
+        });
+      } else {
+        await tx.member.update({
+          where: { id: member.id },
+          data: { isPresident: true, title: 'Presidente', userId, deletedAt: null, status: 'ACTIVE' },
+        });
+      }
+
+      // 2. Set all other members of this club to not isPresident
+      await tx.member.updateMany({
+        where: { clubId, id: { not: member.id }, isPresident: true },
+        data: { isPresident: false },
+      });
+
+      // 3. Remove isPresident from any other memberships in this club
+      await tx.membership.updateMany({
+        where: { clubId, userId: { not: userId }, isPresident: true },
+        data: { isPresident: false, clubRole: 'PAST_PRESIDENT' },
+      });
+
+      // 4. Upsert membership for new president
+      await tx.membership.upsert({
+        where: { userId_clubId: { userId, clubId } },
+        create: {
+          userId,
+          clubId,
+          isPresident: true,
+          clubRole: 'PRESIDENT',
+          title: 'Presidente',
+        },
+        update: {
+          isPresident: true,
+          clubRole: 'PRESIDENT',
+          title: 'Presidente',
+          activeUntil: null,
+        },
+      });
+
+      // 5. Update club contact email
+      await tx.club.update({
+        where: { id: clubId },
+        data: { presidentEmail: user.email },
+      });
+    });
+
+    await this.audit.log({
+      actorUserId,
+      action: 'platform_admin.assign_president',
+      entityType: 'User',
+      entityId: userId,
+      metadata: { clubId, presidentEmail: user.email },
+    });
+
+    return { message: 'Asignado como presidente actual con éxito' };
+  }
+
   async updateMe(
     userId: string,
     data: { fullName?: string; email?: string },

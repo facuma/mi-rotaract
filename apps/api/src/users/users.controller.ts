@@ -93,4 +93,15 @@ export class UsersController {
   ) {
     return this.usersService.removeMembership(id, clubId);
   }
+
+  @Post(':id/memberships/:clubId/set-president')
+  @Roles(Role.SUPERADMIN)
+  @HttpCode(200)
+  setAsPresident(
+    @Param('id') id: string,
+    @Param('clubId') clubId: string,
+    @CurrentUser() actor: { id: string },
+  ) {
+    return this.usersService.setAsPresident(id, clubId, actor.id);
+  }
 }

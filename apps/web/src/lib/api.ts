@@ -364,6 +364,8 @@ export const usersApi = {
     ),
   removeMembership: (id: string, clubId: string) =>
     api<{ message: string }>(`/users/${id}/memberships/${clubId}`, { method: 'DELETE' }),
+  setPresident: (id: string, clubId: string) =>
+    api<{ message: string }>(`/users/${id}/memberships/${clubId}/set-president`, { method: 'POST' }),
 };
 
 export type ActiveTimer = {
