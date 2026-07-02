@@ -610,11 +610,16 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         attendanceStatus: p.attendanceStatus,
         canVote: p.canVote,
       })),
-      clubAttendance: meeting.clubAttendances.map((a) => ({
-        clubId: a.clubId,
-        clubName: a.club.name,
-        connected: this.getConnectedClubIds(meetingId).includes(a.clubId),
-      })),
+      clubAttendance: meeting.clubAttendances.map((a) => {
+        const participant = meeting.participants.find((p) => p.userId === a.attendeeUserId);
+        return {
+          clubId: a.clubId,
+          clubName: a.club.name,
+          connected: this.getConnectedClubIds(meetingId).includes(a.clubId),
+          attendeeUserId: a.attendeeUserId,
+          attendeeName: participant?.user?.fullName || null,
+        };
+      }),
     };
   }
 }

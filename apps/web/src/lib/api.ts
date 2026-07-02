@@ -126,6 +126,11 @@ export const meetingsApi = {
   },
   deleteAttachment: (meetingId: string, attachmentId: string) =>
     api<unknown>(`/meetings/${meetingId}/attachments/${attachmentId}`, { method: 'DELETE' }),
+  updateClubRepresentative: (meetingId: string, clubId: string, userId: string) =>
+    api<{ message: string }>(`/meetings/${meetingId}/clubs/${clubId}/representative`, {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    }),
 };
 
 export const queueApi = {

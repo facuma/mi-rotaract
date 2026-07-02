@@ -380,7 +380,7 @@ export class MeetingsService {
   }
 
   async findAll(userId: string, role: Role) {
-    if (role === Role.SECRETARY || role === Role.PRESIDENT || role === Role.RDR) {
+    if (role === Role.SECRETARY || role === Role.PRESIDENT || role === Role.RDR || role === Role.SUPERADMIN) {
       return this.prisma.meeting.findMany({
         orderBy: [{ scheduledAt: 'desc' }, { createdAt: 'desc' }],
         include: { club: true },
@@ -401,11 +401,11 @@ export class MeetingsService {
       where: { id },
       include: { club: true, participants: { include: { user: true } } },
     });
-    if (!meeting) throw new NotFoundException('Reuni?n no encontrada');
-    if (role !== Role.SECRETARY && role !== Role.PRESIDENT && role !== Role.RDR) {
+    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+    if (role !== Role.SECRETARY && role !== Role.PRESIDENT && role !== Role.RDR && role !== Role.SUPERADMIN) {
       const isParticipant = meeting.participants.some((p) => p.userId === userId);
       if (!isParticipant && meeting.status !== MeetingStatus.DRAFT)
-        throw new NotFoundException('No ten?s acceso a esta reuni?n');
+        throw new NotFoundException('No tenés acceso a esta reunión');
     }
     return meeting;
   }
@@ -677,8 +677,73 @@ export class MeetingsService {
     });
   }
 
+  async updateClubRepresentative(meetingId: string, clubId: string, userId: string, actorUserId: string) {
+    await this.assertMeetingExists(meetingId);
+
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        userId,
+        clubId,
+        OR: [{ activeUntil: null }, { activeUntil: { gte: new Date() } }]
+      }
+    });
+    if (!membership) {
+      throw new BadRequestException('El usuario no pertenece a este club o su membresía no está activa');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.meetingParticipant.deleteMany({
+        where: { meetingId, clubId, userId: { not: userId } }
+      });
+
+      await tx.meetingParticipant.upsert({
+        where: { meetingId_userId: { meetingId, userId } },
+        create: {
+          meetingId,
+          userId,
+          clubId,
+          isDelegate: false,
+          canVote: true,
+          attendanceStatus: 'JOINED',
+          joinedAt: new Date()
+        },
+        update: {
+          clubId,
+          canVote: true,
+          attendanceStatus: 'JOINED'
+        }
+      });
+
+      await tx.clubMeetingAttendance.upsert({
+        where: { meetingId_clubId: { meetingId, clubId } },
+        create: {
+          meetingId,
+          clubId,
+          attendeeUserId: userId,
+          isDelegate: false
+        },
+        update: {
+          attendeeUserId: userId
+        }
+      });
+    });
+
+    await this.audit.log({
+      meetingId,
+      actorUserId,
+      action: 'meeting.club_representative.updated',
+      entityType: 'Meeting',
+      entityId: meetingId,
+      metadata: { clubId, userId }
+    });
+
+    await this.realtime.broadcastSnapshot(meetingId);
+
+    return { message: 'Representante del club actualizado con éxito' };
+  }
+
   private async assertMeetingExists(id: string) {
     const m = await this.prisma.meeting.findUnique({ where: { id } });
-    if (!m) throw new NotFoundException('Reuni?n no encontrada');
+    if (!m) throw new NotFoundException('Reunión no encontrada');
   }
 }

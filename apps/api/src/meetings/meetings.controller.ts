@@ -213,4 +213,17 @@ export class MeetingsController {
       actorUserId: user.id,
     });
   }
+
+  @Post(':id/clubs/:clubId/representative')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY, Role.RDR)
+  @HttpCode(200)
+  updateClubRepresentative(
+    @Param('id') meetingId: string,
+    @Param('clubId') clubId: string,
+    @Body() body: { userId: string },
+    @CurrentUser() actor: CurrentUserPayload,
+  ) {
+    return this.meetingsService.updateClubRepresentative(meetingId, clubId, body.userId, actor.id);
+  }
 }

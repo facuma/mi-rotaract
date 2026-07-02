@@ -68,7 +68,13 @@ export type MeetingSnapshot = {
     met: boolean;
     isInformationalOnly: boolean;
   } | null;
-  clubAttendance?: { clubId: string; clubName: string; connected: boolean }[];
+  clubAttendance?: {
+    clubId: string;
+    clubName: string;
+    connected: boolean;
+    attendeeUserId: string | null;
+    attendeeName: string | null;
+  }[];
   ownVote?: {
     voteSessionId: string;
     choice: 'YES' | 'NO' | 'ABSTAIN';

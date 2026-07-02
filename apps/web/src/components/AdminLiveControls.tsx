@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState, useEffect } from 'react';
-import { votingApi, timersApi, topicsApi, queueApi, meetingsApi, usersApi, clubsApi, motionsApi } from '@/lib/api';
+import { votingApi, timersApi, topicsApi, queueApi, meetingsApi, usersApi, clubsApi, motionsApi, districtApi } from '@/lib/api';
 import { VoteReadyModal } from '@/components/meetings/VoteReadyModal';
 import { VoteResultSummary } from '@/components/VoteResultSummary';
 import { Button } from '@/components/ui/button';
@@ -55,7 +55,13 @@ const TIMER_PRESETS = [
 // ==========================================
 type AdminAttendanceControlProps = {
   meetingId: string;
-  clubAttendance?: { clubId: string; clubName: string; connected: boolean }[];
+  clubAttendance?: {
+    clubId: string;
+    clubName: string;
+    connected: boolean;
+    attendeeUserId: string | null;
+    attendeeName: string | null;
+  }[];
   attendanceLocked?: boolean;
   clubsPresent?: number;
   className?: string;
@@ -68,6 +74,12 @@ export function AdminAttendanceControl({
   className,
 }: AdminAttendanceControlProps) {
   const [lockingAttendance, setLockingAttendance] = useState(false);
+  const [selectedClub, setSelectedClub] = useState<{
+    clubId: string;
+    clubName: string;
+    attendeeUserId: string | null;
+    attendeeName: string | null;
+  } | null>(null);
 
   async function handleLockAttendance() {
     setLockingAttendance(true);
@@ -84,47 +96,169 @@ export function AdminAttendanceControl({
   if (clubAttendance.length === 0) return null;
 
   return (
-    <Card className={className}>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Asistencia y Quórum</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold tabular-nums">
-            {clubAttendance.filter((c) => c.connected).length} de {clubAttendance.length} conectados
-          </span>
-          {attendanceLocked ? (
-            <Badge variant="secondary" className="text-xs">Cerrada</Badge>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs"
-              disabled={lockingAttendance}
-              onClick={handleLockAttendance}
-            >
-              {lockingAttendance ? 'Cerrando...' : 'Cerrar asistencia'}
-            </Button>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
-          {clubAttendance.map((c) => (
-            <span
-              key={c.clubId}
-              className={cn(
-                'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]',
-                c.connected
-                  ? 'border border-success/30 bg-success/10 text-success font-medium'
-                  : 'border border-border bg-muted/30 text-muted-foreground',
-              )}
-            >
-              <span className={cn('size-1.5 rounded-full', c.connected ? 'bg-success animate-pulse' : 'bg-muted-foreground/50')} />
-              {c.clubName}
+    <>
+      <Card className={className}>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Asistencia y Quórum</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold tabular-nums">
+              {clubAttendance.filter((c) => c.connected).length} de {clubAttendance.length} conectados
             </span>
-          ))}
+            {attendanceLocked ? (
+              <Badge variant="secondary" className="text-xs">Cerrada</Badge>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={lockingAttendance}
+                onClick={handleLockAttendance}
+              >
+                {lockingAttendance ? 'Cerrando...' : 'Cerrar asistencia'}
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+            {clubAttendance.map((c) => (
+              <button
+                key={c.clubId}
+                type="button"
+                onClick={() => setSelectedClub(c)}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] cursor-pointer hover:opacity-80 transition-opacity text-left',
+                  c.connected
+                    ? 'border border-success/30 bg-success/10 text-success font-medium'
+                    : 'border border-border bg-muted/30 text-muted-foreground',
+                )}
+              >
+                <span className={cn('size-1.5 rounded-full', c.connected ? 'bg-success animate-pulse' : 'bg-muted-foreground/50')} />
+                {c.clubName}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {selectedClub && (
+        <ChangeRepresentativeDialog
+          meetingId={meetingId}
+          clubId={selectedClub.clubId}
+          clubName={selectedClub.clubName}
+          currentAttendeeId={selectedClub.attendeeUserId}
+          currentAttendeeName={selectedClub.attendeeName}
+          open={!!selectedClub}
+          onClose={() => setSelectedClub(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function ChangeRepresentativeDialog({
+  meetingId,
+  clubId,
+  clubName,
+  currentAttendeeId,
+  currentAttendeeName,
+  open,
+  onClose,
+}: {
+  meetingId: string;
+  clubId: string;
+  clubName: string;
+  currentAttendeeId: string | null;
+  currentAttendeeName: string | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [members, setMembers] = useState<{ userId: string; fullName: string; email: string }[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    districtApi.clubs
+      .get(clubId)
+      .then((res: any) => {
+        setMembers(res.authorities || []);
+        if (currentAttendeeId) {
+          setSelectedUserId(currentAttendeeId);
+        }
+      })
+      .catch((err) => {
+        toast.error('Error al cargar socios del club: ' + err.message);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [open, clubId, currentAttendeeId]);
+
+  const handleSave = async () => {
+    if (!selectedUserId) return;
+    setLoading(true);
+    try {
+      await meetingsApi.updateClubRepresentative(meetingId, clubId, selectedUserId);
+      toast.success('Representante actualizado');
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message || 'Error al actualizar representante');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Cambiar Representante — {clubName}</DialogTitle>
+          <DialogDescription>
+            Selecciona el socio que representará al club y ejercerá el voto en esta reunión.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-3">
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-foreground">Representante Actual</label>
+            <p className="text-sm text-muted-foreground bg-muted/50 p-2 rounded-md border border-border/40">
+              {currentAttendeeName || 'Ninguno asignado'}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-foreground">Nuevo Representante</label>
+            {loading && members.length === 0 ? (
+              <div className="animate-pulse h-10 bg-muted rounded-md" />
+            ) : (
+              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un socio..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {members.map((m) => (
+                    <SelectItem key={m.userId} value={m.userId}>
+                      {m.fullName} ({m.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </div>
-      </CardContent>
-    </Card>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={loading}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={loading || !selectedUserId}>
+            {loading ? 'Guardando...' : 'Asignar como Representante'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
