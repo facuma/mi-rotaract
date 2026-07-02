@@ -484,7 +484,7 @@ export function AdminVotingControl({
       }
     }
   }
-  const currentTopicIsMotion = currentTopic?.type === 'VOTING' || currentTopic?.title?.startsWith('Moción:');
+  const currentTopicIsMotion = currentTopic?.title?.startsWith('Moción:');
   const showReturnButton = !!(currentTopicIsMotion && previousNormalTopic);
 
   async function setCurrentTopic(topicId: string | null) {
