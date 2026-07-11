@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useMeetingRoom } from '@/hooks/useMeetingRoom';
+import { useAuthState } from '@/context/AuthContext';
 import { CurrentTopicCard } from '@/components/CurrentTopicCard';
 import { SpeakingQueueList } from '@/components/SpeakingQueueList';
 import {
@@ -26,6 +28,18 @@ export default function AdminLivePage() {
   const params = useParams();
   const meetingId = params.id as string;
   const { snapshot, voteResult, connected, joinError } = useMeetingRoom(meetingId);
+  const { user } = useAuthState();
+
+  // "Tomar voz en nombre de…": nombre del invitado bajo el cual la mesa transcribe.
+  const [onBehalfOf, setOnBehalfOf] = useState<string | null>(null);
+
+  // Si la mesa deja de ser el orador actual, se limpia el rótulo "en nombre de".
+  const currentSpeakerId = snapshot?.currentSpeaker?.id;
+  useEffect(() => {
+    if (onBehalfOf && currentSpeakerId !== user?.id) {
+      setOnBehalfOf(null);
+    }
+  }, [onBehalfOf, currentSpeakerId, user?.id]);
 
   return (
     <div className="space-y-6">
@@ -35,6 +49,7 @@ export default function AdminLivePage() {
           currentSpeakerId={snapshot.currentSpeaker?.id}
           currentTopicId={snapshot.currentTopicId}
           transcriptionEnabled={snapshot.meeting?.transcriptionEnabled ?? true}
+          onBehalfOf={onBehalfOf}
         />
       )}
       {/* Header */}
@@ -136,6 +151,8 @@ export default function AdminLivePage() {
                 currentSpeaker={snapshot.currentSpeaker}
                 nextSpeaker={snapshot.nextSpeaker}
                 currentTopicId={snapshot.currentTopicId}
+                onBehalfOf={onBehalfOf}
+                onSetOnBehalfOf={setOnBehalfOf}
               />
             </div>
           </div>

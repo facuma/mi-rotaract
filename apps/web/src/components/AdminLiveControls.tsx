@@ -5,6 +5,7 @@ import { votingApi, timersApi, topicsApi, queueApi, meetingsApi, usersApi, clubs
 import { VoteReadyModal } from '@/components/meetings/VoteReadyModal';
 import { VoteResultSummary } from '@/components/VoteResultSummary';
 import { TakeFloorControl } from '@/components/meetings/TakeFloorControl';
+import { useAuthState } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -586,6 +587,8 @@ type AdminSpeakerControlProps = {
   currentSpeaker?: Speaker | null;
   nextSpeaker?: Speaker | null;
   currentTopicId?: string | null;
+  onBehalfOf?: string | null;
+  onSetOnBehalfOf?: (name: string | null) => void;
   className?: string;
 };
 
@@ -594,12 +597,47 @@ export function AdminSpeakerControl({
   currentSpeaker,
   nextSpeaker,
   currentTopicId,
+  onBehalfOf,
+  onSetOnBehalfOf,
   className,
 }: AdminSpeakerControlProps) {
+  const { user } = useAuthState();
+  const canSpeakOnBehalf = user?.role === 'SECRETARY' || user?.role === 'RDR';
+  const [naming, setNaming] = useState(false);
+  const [guestName, setGuestName] = useState('');
+
   async function handleSetCurrentSpeaker(userId: string | null) {
     try {
       await queueApi.setCurrentSpeaker(meetingId, userId);
       toast.success(userId ? 'Orador actualizado.' : 'Orador quitado.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error');
+    }
+  }
+
+  async function startOnBehalf() {
+    const name = guestName.trim();
+    if (!name || !user) return;
+    try {
+      await queueApi.setCurrentSpeaker(meetingId, user.id);
+      onSetOnBehalfOf?.(name);
+      setNaming(false);
+      setGuestName('');
+      if (!currentTopicId) {
+        toast.info('No hay un tema activo: la transcripción no se guardará hasta que se active un tema.');
+      } else {
+        toast.success(`Tomaste la voz en nombre de ${name}.`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error');
+    }
+  }
+
+  async function endOnBehalf() {
+    try {
+      await queueApi.setCurrentSpeaker(meetingId, null);
+      onSetOnBehalfOf?.(null);
+      toast.success('Terminó la intervención en nombre del invitado.');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Error');
     }
@@ -664,6 +702,62 @@ export function AdminSpeakerControl({
           currentSpeaker={currentSpeaker}
           currentTopicId={currentTopicId}
         />
+
+        {canSpeakOnBehalf && (
+          <div className="pt-1.5 border-t border-border/40">
+            {onBehalfOf ? (
+              <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 space-y-2">
+                <p className="text-xs text-warning-foreground">
+                  🎤 Hablando en nombre de <span className="font-semibold">{onBehalfOf}</span>
+                </p>
+                <Button variant="outline" size="sm" className="w-full h-7 text-xs" onClick={endOnBehalf}>
+                  Terminar intervención
+                </Button>
+              </div>
+            ) : naming ? (
+              <div className="space-y-2">
+                <Input
+                  autoFocus
+                  placeholder="Nombre del invitado…"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') startOnBehalf();
+                    if (e.key === 'Escape') { setNaming(false); setGuestName(''); }
+                  }}
+                  className="h-8 text-sm"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-7 text-xs"
+                    onClick={() => { setNaming(false); setGuestName(''); }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1 h-7 text-xs"
+                    onClick={startOnBehalf}
+                    disabled={!guestName.trim()}
+                  >
+                    Tomar voz
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full h-8 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setNaming(true)}
+              >
+                🎤 Tomar voz en nombre de…
+              </Button>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
