@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { MeetingStatus } from '@prisma/client';
+import { MeetingStatus, Role } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -385,22 +385,46 @@ export class TopicsService {
     if (!t) throw new NotFoundException('Tema no encontrado');
   }
 
+  /**
+   * Resuelve a quién se le atribuye la transcripción. Si la secretaría/RDR
+   * indica un `speakerName` (habla en nombre de un invitado sin cuenta), la
+   * transcripción se guarda bajo ese nombre y sin userId. En cualquier otro
+   * caso se atribuye al usuario que realmente sube el audio/texto.
+   */
+  private resolveTranscriptionAuthor(
+    actorId: string,
+    actorName: string,
+    actorRole: Role | undefined,
+    speakerName: string | undefined,
+  ): { userId: string | null; userName: string } {
+    const onBehalf = speakerName?.trim();
+    const canSpeakOnBehalf = actorRole === Role.SECRETARY || actorRole === Role.RDR;
+    if (onBehalf && canSpeakOnBehalf) {
+      return { userId: null, userName: onBehalf.slice(0, 120) };
+    }
+    return { userId: actorId, userName: actorName };
+  }
+
   async addTranscription(
     meetingId: string,
     topicId: string,
     userId: string,
     userName: string,
     text: string,
+    actorRole?: Role,
+    speakerName?: string,
   ) {
     const meeting = await this.prisma.meeting.findUnique({ where: { id: meetingId } });
     if (!meeting) throw new NotFoundException('Reunión no encontrada');
     await this.assertTopicInMeeting(meetingId, topicId);
 
+    const author = this.resolveTranscriptionAuthor(userId, userName, actorRole, speakerName);
+
     const transcription = await this.prisma.topicTranscription.create({
       data: {
         topicId,
-        userId,
-        userName,
+        userId: author.userId,
+        userName: author.userName,
         text: text.trim(),
       },
     });
@@ -414,6 +438,8 @@ export class TopicsService {
     userId: string,
     userName: string,
     file: Express.Multer.File,
+    actorRole?: Role,
+    speakerName?: string,
   ) {
     const meeting = await this.prisma.meeting.findUnique({ where: { id: meetingId } });
     if (!meeting) throw new NotFoundException('Reunión no encontrada');
@@ -487,12 +513,13 @@ export class TopicsService {
         return null;
       }
 
-      // Save transcription to database
+      // Save transcription to database (atribuida al invitado si la mesa habla en su nombre)
+      const author = this.resolveTranscriptionAuthor(userId, userName, actorRole, speakerName);
       const transcription = await this.prisma.topicTranscription.create({
         data: {
           topicId,
-          userId,
-          userName,
+          userId: author.userId,
+          userName: author.userName,
           text: transcribedText,
         },
       });

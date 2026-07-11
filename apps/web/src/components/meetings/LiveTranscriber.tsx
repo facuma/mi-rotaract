@@ -11,6 +11,8 @@ interface LiveTranscriberProps {
   currentSpeakerId: string | null | undefined;
   currentTopicId: string | null | undefined;
   transcriptionEnabled?: boolean;
+  /** Si la mesa toma la voz en nombre de un invitado, su nombre para atribuir la transcripción. */
+  onBehalfOf?: string | null;
 }
 
 function MicIcon({ size = 32 }: { size?: number }) {
@@ -162,15 +164,17 @@ type FabState = 'recording' | 'confirming' | 'releasing';
 function MicFloatingButton({
   state,
   onTap,
+  onBehalfOf,
 }: {
   state: FabState;
   onTap: () => void;
+  onBehalfOf?: string | null;
 }) {
   const visuals: Record<FabState, { bg: string; shadow: string; title: string; subtitle: string }> = {
     recording: {
       bg: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
       shadow: '0 8px 24px rgba(220,38,38,0.35)',
-      title: 'Transcribiendo tu voz',
+      title: onBehalfOf ? `Transcribiendo en nombre de ${onBehalfOf}` : 'Transcribiendo tu voz',
       subtitle: 'Tocá para terminar tu intervención',
     },
     confirming: {
@@ -280,6 +284,7 @@ export function LiveTranscriber({
   currentSpeakerId,
   currentTopicId,
   transcriptionEnabled = true,
+  onBehalfOf,
 }: LiveTranscriberProps) {
   const { user } = useAuthState();
   const [hasActivated, setHasActivated] = useState(false);
@@ -296,7 +301,12 @@ export function LiveTranscriber({
   // Keep latest state in refs to prevent closure stale state bugs
   const isSpeakingRef = useRef(isSpeaking);
   const currentTopicIdRef = useRef(currentTopicId);
+  const onBehalfOfRef = useRef(onBehalfOf);
   const mimeTypeRef = useRef('audio/webm');
+
+  useEffect(() => {
+    onBehalfOfRef.current = onBehalfOf;
+  }, [onBehalfOf]);
 
   useEffect(() => {
     isSpeakingRef.current = isSpeaking;
@@ -399,9 +409,11 @@ export function LiveTranscriber({
             else if (mimeTypeRef.current.includes('wav')) filename = 'audio.wav';
             else if (mimeTypeRef.current.includes('ogg')) filename = 'audio.ogg';
 
-            topicsApi.addTranscriptionAudio(meetingId, activeTopicId, audioBlob, filename).catch((err) => {
-              console.error('Error transcribing audio chunk:', err);
-            });
+            topicsApi
+              .addTranscriptionAudio(meetingId, activeTopicId, audioBlob, filename, onBehalfOfRef.current ?? undefined)
+              .catch((err) => {
+                console.error('Error transcribing audio chunk:', err);
+              });
           }
 
           // Restart recording if still speaking
@@ -498,7 +510,7 @@ export function LiveTranscriber({
         />
       )}
       {isSpeaking && hasActivated && (
-        <MicFloatingButton state={fabState} onTap={handleEndIntervention} />
+        <MicFloatingButton state={fabState} onTap={handleEndIntervention} onBehalfOf={onBehalfOf} />
       )}
     </>
   );

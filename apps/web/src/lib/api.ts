@@ -229,10 +229,11 @@ export const topicsApi = {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
-  addTranscriptionAudio: (meetingId: string, topicId: string, audioBlob: Blob, filename = 'audio.webm') => {
+  addTranscriptionAudio: (meetingId: string, topicId: string, audioBlob: Blob, filename = 'audio.webm', speakerName?: string) => {
     const token = getToken();
     const form = new FormData();
     form.append('file', audioBlob, filename);
+    if (speakerName && speakerName.trim()) form.append('speakerName', speakerName.trim());
     return fetch(`${API_URL}/meetings/${meetingId}/topics/${topicId}/transcriptions/audio`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},

@@ -135,7 +135,15 @@ export class TopicsController {
     @Body() dto: CreateTranscriptionDto,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.topicsService.addTranscription(meetingId, topicId, user.id, user.fullName, dto.text);
+    return this.topicsService.addTranscription(
+      meetingId,
+      topicId,
+      user.id,
+      user.fullName,
+      dto.text,
+      user.role,
+      dto.speakerName,
+    );
   }
 
   @Post(':topicId/transcriptions/audio')
@@ -154,8 +162,17 @@ export class TopicsController {
     @Param('meetingId') meetingId: string,
     @Param('topicId') topicId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Body('speakerName') speakerName: string | undefined,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.topicsService.transcribeAudio(meetingId, topicId, user.id, user.fullName, file);
+    return this.topicsService.transcribeAudio(
+      meetingId,
+      topicId,
+      user.id,
+      user.fullName,
+      file,
+      user.role,
+      speakerName,
+    );
   }
 }
