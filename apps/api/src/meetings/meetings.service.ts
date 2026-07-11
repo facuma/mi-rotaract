@@ -53,7 +53,7 @@ export class MeetingsService {
   private parseBool(val: string | undefined, defaultVal: boolean): boolean {
     if (!val || val.trim() === '') return defaultVal;
     const v = val.trim().toLowerCase();
-    return v === 'true' || v === '1' || v === 's?' || v === 'si' || v === 'yes';
+    return v === 'true' || v === '1' || v === 'sí' || v === 'si' || v === 's' || v === 'yes';
   }
 
   async bulkImport(
@@ -457,7 +457,7 @@ export class MeetingsService {
       orderBy: { order: 'asc' },
     });
     let firstTopic = topics[0];
-    const hasAttendance = topics.some(t => t.title.toLowerCase().includes('asistencia'));
+    const hasAttendance = topics.some(t => t.isAttendanceTopic || t.title.toLowerCase().includes('asistencia'));
     if (!hasAttendance) {
       const minOrder = topics.length > 0 ? topics[0].order - 1 : 0;
       firstTopic = await this.prisma.agendaTopic.create({
@@ -468,22 +468,23 @@ export class MeetingsService {
           order: minOrder,
           type: 'DISCUSSION',
           status: 'ACTIVE',
+          isAttendanceTopic: true,
         },
       });
     } else {
-      const attendanceTopic = topics.find(t => t.title.toLowerCase().includes('asistencia'))!;
+      const attendanceTopic = topics.find(t => t.isAttendanceTopic || t.title.toLowerCase().includes('asistencia'))!;
       if (attendanceTopic.id !== firstTopic.id) {
         await this.prisma.agendaTopic.update({
           where: { id: attendanceTopic.id },
-          data: { order: firstTopic.order - 1, status: 'ACTIVE' },
+          data: { order: firstTopic.order - 1, status: 'ACTIVE', isAttendanceTopic: true },
         });
-        firstTopic = { ...attendanceTopic, order: firstTopic.order - 1, status: 'ACTIVE' };
+        firstTopic = { ...attendanceTopic, order: firstTopic.order - 1, status: 'ACTIVE', isAttendanceTopic: true } as any;
       } else {
         await this.prisma.agendaTopic.update({
           where: { id: attendanceTopic.id },
-          data: { status: 'ACTIVE' },
+          data: { status: 'ACTIVE', isAttendanceTopic: true },
         });
-        firstTopic = { ...attendanceTopic, status: 'ACTIVE' };
+        firstTopic = { ...attendanceTopic, status: 'ACTIVE', isAttendanceTopic: true } as any;
       }
     }
 
@@ -629,6 +630,25 @@ export class MeetingsService {
     return updated;
   }
 
+  async toggleTranscription(id: string, actorUserId: string, enabled: boolean) {
+    const meeting = await this.prisma.meeting.findUnique({ where: { id } });
+    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+
+    const updated = await this.prisma.meeting.update({
+      where: { id },
+      data: { transcriptionEnabled: enabled },
+    });
+    await this.audit.log({
+      meetingId: id,
+      actorUserId,
+      action: enabled ? 'meeting.transcription.enabled' : 'meeting.transcription.disabled',
+      entityType: 'Meeting',
+      entityId: id,
+    });
+    await this.realtime.broadcastSnapshot(id);
+    return updated;
+  }
+
   async schedule(id: string, actorUserId: string) {
     const meeting = await this.prisma.meeting.findUnique({ where: { id } });
     if (!meeting) throw new NotFoundException('Reuni?n no encontrada');
@@ -653,16 +673,35 @@ export class MeetingsService {
 
   async assignParticipants(id: string, dto: AssignParticipantsDto, actorUserId: string) {
     await this.assertMeetingExists(id);
-    await this.prisma.meetingParticipant.deleteMany({ where: { meetingId: id } });
-    if (dto.participants.length > 0) {
-      await this.prisma.meetingParticipant.createMany({
-        data: dto.participants.map((p) => ({
+    const newParticipantUserIds = dto.participants.map((p) => p.userId);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Delete participants no longer in the list
+      await tx.meetingParticipant.deleteMany({
+        where: {
           meetingId: id,
-          userId: p.userId,
-          canVote: p.canVote ?? true,
-        })),
+          userId: { notIn: newParticipantUserIds },
+        },
       });
-    }
+
+      // Upsert current participants to preserve status/joinedAt
+      for (const p of dto.participants) {
+        await tx.meetingParticipant.upsert({
+          where: {
+            meetingId_userId: { meetingId: id, userId: p.userId },
+          },
+          create: {
+            meetingId: id,
+            userId: p.userId,
+            canVote: p.canVote ?? true,
+          },
+          update: {
+            canVote: p.canVote ?? true,
+          },
+        });
+      }
+    });
+
     await this.audit.log({
       meetingId: id,
       actorUserId,
@@ -737,9 +776,64 @@ export class MeetingsService {
       metadata: { clubId, userId }
     });
 
+    await this.quorum.recheckAndUpdateQuorum(meetingId);
     await this.realtime.broadcastSnapshot(meetingId);
 
     return { message: 'Representante del club actualizado con éxito' };
+  }
+
+  async removeClubAttendance(meetingId: string, clubId: string, actorUserId: string) {
+    await this.assertMeetingExists(meetingId);
+
+    const meeting = await this.prisma.meeting.findUnique({ where: { id: meetingId } });
+    if (meeting?.status === MeetingStatus.FINISHED || meeting?.status === MeetingStatus.ARCHIVED) {
+      throw new BadRequestException('No se puede modificar la asistencia de una reunión finalizada o archivada');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Clear normal votes in active open sessions
+      await tx.vote.deleteMany({
+        where: {
+          session: {
+            meetingId,
+            status: 'OPEN',
+          },
+          clubId,
+        },
+      });
+
+      // Clear sealed votes in active open sessions
+      await tx.sealedVote.deleteMany({
+        where: {
+          session: {
+            meetingId,
+            status: 'OPEN',
+          },
+          clubId,
+        },
+      });
+
+      await tx.clubMeetingAttendance.deleteMany({
+        where: { meetingId, clubId }
+      });
+      await tx.meetingParticipant.deleteMany({
+        where: { meetingId, clubId }
+      });
+    });
+
+    await this.audit.log({
+      meetingId,
+      actorUserId,
+      action: 'meeting.club_attendance.removed',
+      entityType: 'Meeting',
+      entityId: meetingId,
+      metadata: { clubId }
+    });
+
+    await this.quorum.recheckAndUpdateQuorum(meetingId);
+    await this.realtime.broadcastSnapshot(meetingId);
+
+    return { message: 'Asistencia del club eliminada con éxito' };
   }
 
   private async assertMeetingExists(id: string) {

@@ -8,11 +8,12 @@ import { MeetingsService } from './meetings.service';
 import { QuorumService } from './quorum.service';
 import { ActaService } from './acta.service';
 import { ActaController } from './acta.controller';
+import { AIService } from './ai.service';
 
 @Module({
   imports: [AuditModule, AttachmentsModule, ClubsModule, RealtimeModule],
   controllers: [MeetingsController, ActaController],
-  providers: [MeetingsService, QuorumService, ActaService],
-  exports: [MeetingsService, QuorumService, ActaService],
+  providers: [MeetingsService, QuorumService, ActaService, AIService],
+  exports: [MeetingsService, QuorumService, ActaService, AIService],
 })
 export class MeetingsModule {}

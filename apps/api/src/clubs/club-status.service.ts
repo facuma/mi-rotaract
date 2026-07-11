@@ -76,11 +76,13 @@ export class ClubStatusService {
   }
 
   /**
-   * Returns all clubs that are habilitado (active + cuota + informe).
-   * Used for quorum calculation.
+   * Clubes habilitados para el quórum: activos, constituidos, al día (cuota + informe)
+   * y habilitados para reuniones distritales. NO se aplica el filtro de asistencia
+   * histórica (activo) — la base del quórum es el universo de clubes habilitados,
+   * no solo los que asistieron a reuniones anteriores.
    */
-  async getHabilitadoClubs(): Promise<{ id: string; name: string }[]> {
-    const activeClubs = await this.prisma.club.findMany({
+  async getQuorumBaseClubs(): Promise<{ id: string; name: string }[]> {
+    return this.prisma.club.findMany({
       where: {
         status: 'ACTIVE',
         isConstituido: true,
@@ -90,6 +92,15 @@ export class ClubStatusService {
       },
       select: { id: true, name: true },
     });
+  }
+
+  /**
+   * Returns all clubs that are habilitado (active + cuota + informe) AND activo
+   * (attended one of the last 3 finished district meetings).
+   * Used for the "club status" views, not for the quorum base.
+   */
+  async getHabilitadoClubs(): Promise<{ id: string; name: string }[]> {
+    const activeClubs = await this.getQuorumBaseClubs();
 
     // Filter by attendance (activo check)
     const lastThreeMeetings = await this.prisma.meeting.findMany({

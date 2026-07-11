@@ -125,6 +125,17 @@ export class MeetingsController {
     return this.meetingsService.lockAttendance(id, user.id);
   }
 
+  @Post(':id/transcription')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY, Role.RDR)
+  toggleTranscription(
+    @Param('id') id: string,
+    @Body() body: { enabled: boolean },
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.meetingsService.toggleTranscription(id, user.id, body.enabled);
+  }
+
   @Post(':id/schedule')
   @UseGuards(RolesGuard)
   @Roles(Role.SECRETARY, Role.RDR)
@@ -225,5 +236,16 @@ export class MeetingsController {
     @CurrentUser() actor: CurrentUserPayload,
   ) {
     return this.meetingsService.updateClubRepresentative(meetingId, clubId, body.userId, actor.id);
+  }
+
+  @Delete(':id/clubs/:clubId/attendance')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY, Role.RDR)
+  removeClubAttendance(
+    @Param('id') meetingId: string,
+    @Param('clubId') clubId: string,
+    @CurrentUser() actor: CurrentUserPayload,
+  ) {
+    return this.meetingsService.removeClubAttendance(meetingId, clubId, actor.id);
   }
 }

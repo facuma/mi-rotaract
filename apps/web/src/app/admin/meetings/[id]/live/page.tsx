@@ -11,6 +11,7 @@ import {
   AdminSpeakerControl,
   AdminVotingControl,
   AdminMotionsControl,
+  AdminTranscriptionControl,
 } from '@/components/AdminLiveControls';
 import { QuorumIndicator } from '@/components/meetings/QuorumIndicator';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { cn } from '@/lib/utils';
+import { LiveTranscriber } from '@/components/meetings/LiveTranscriber';
 
 export default function AdminLivePage() {
   const params = useParams();
@@ -27,6 +29,14 @@ export default function AdminLivePage() {
 
   return (
     <div className="space-y-6">
+      {snapshot && (
+        <LiveTranscriber
+          meetingId={meetingId}
+          currentSpeakerId={snapshot.currentSpeaker?.id}
+          currentTopicId={snapshot.currentTopicId}
+          transcriptionEnabled={snapshot.meeting?.transcriptionEnabled ?? true}
+        />
+      )}
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -110,6 +120,10 @@ export default function AdminLivePage() {
                 attendanceLocked={snapshot.attendanceLocked}
                 clubsPresent={snapshot.quorum?.present ?? 0}
               />
+              <AdminTranscriptionControl
+                meetingId={meetingId}
+                transcriptionEnabled={snapshot.meeting?.transcriptionEnabled ?? true}
+              />
               <AdminTopicControl
                 meetingId={meetingId}
                 topics={snapshot.topics}
@@ -121,6 +135,7 @@ export default function AdminLivePage() {
                 meetingId={meetingId}
                 currentSpeaker={snapshot.currentSpeaker}
                 nextSpeaker={snapshot.nextSpeaker}
+                currentTopicId={snapshot.currentTopicId}
               />
             </div>
           </div>

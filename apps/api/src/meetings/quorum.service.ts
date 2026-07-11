@@ -17,15 +17,18 @@ export class QuorumService {
   ) {}
 
   /**
-   * Art. 41: Quorum = 2/3 of habilitado clubs.
+   * Art. 41: Quorum = 2/3 de los clubes habilitados (base del quórum).
    */
   async calculateQuorumRequirement(): Promise<number> {
-    const count = await this.clubStatus.getHabilitadoClubCount();
-    return Math.ceil((count * 2) / 3);
+    const clubs = await this.clubStatus.getQuorumBaseClubs();
+    return Math.ceil((clubs.length * 2) / 3);
   }
 
   /**
-   * Check quorum for a specific meeting by counting distinct clubs present.
+   * Check quorum for a specific meeting.
+   * Tanto el requisito (2/3) como el conteo de presentes se calculan sobre los
+   * clubes HABILITADOS. Un club presente que no esté habilitado no suma al quórum.
+   * Los moderadores (secretario/RDR) no registran asistencia, así que nunca cuentan.
    */
   async checkQuorum(meetingId: string): Promise<QuorumStatus> {
     const meeting = await this.prisma.meeting.findUnique({
@@ -33,19 +36,19 @@ export class QuorumService {
       select: { isDistrictMeeting: true },
     });
 
-    let required = 0;
-    if (meeting?.isDistrictMeeting) {
-      required = await this.calculateQuorumRequirement();
+    if (!meeting?.isDistrictMeeting) {
+      return { required: 0, present: 0, met: true, isInformationalOnly: false };
     }
 
-    const presentClubs = await this.prisma.clubMeetingAttendance.count({
-      where: {
-        meetingId,
-        club: {
-          status: 'ACTIVE',
-        },
-      },
+    const baseClubs = await this.clubStatus.getQuorumBaseClubs();
+    const habilitadoIds = new Set(baseClubs.map((c) => c.id));
+    const required = Math.ceil((baseClubs.length * 2) / 3);
+
+    const attendances = await this.prisma.clubMeetingAttendance.findMany({
+      where: { meetingId },
+      select: { clubId: true },
     });
+    const presentClubs = attendances.filter((a) => habilitadoIds.has(a.clubId)).length;
 
     const met = presentClubs >= required;
 

@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { TOPIC_TYPE_LABELS, MAJORITY_TYPE_LABELS } from '@/lib/meeting-constants';
+import { cn } from '@/lib/utils';
 
 type ActaContent = {
   header: {
@@ -48,7 +49,20 @@ type ActaContent = {
       total: number;
       approved: boolean | null;
       rdrTiebreaker: boolean;
+      ballotType?: string;
+      electionType?: string | null;
+      options?: string[];
+      candidates?: { name: string; votes: number }[];
+      detailedVotes?: { clubName: string; choice: string; candidateName?: string | null }[];
     };
+  }[];
+  motions?: {
+    id: string;
+    title: string;
+    description: string | null;
+    proposedByClubName: string;
+    secondedByClubName: string | null;
+    status: string;
   }[];
   resolutions: { number: number; text: string; approved: boolean }[];
   observations: string;
@@ -68,6 +82,7 @@ export function ActaEditor({ meetingId, acta, canEdit, onUpdated }: ActaEditorPr
   const [publishing, setPublishing] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [autocompleting, setAutocompleting] = useState(false);
 
   const isPublished = acta.status === 'PUBLISHED';
   const editable = canEdit && !isPublished;
@@ -93,6 +108,21 @@ export function ActaEditor({ meetingId, acta, canEdit, onUpdated }: ActaEditorPr
       toast.error(e instanceof Error ? e.message : 'Error al guardar.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleAutocompleteAI() {
+    setAutocompleting(true);
+    try {
+      const res: any = await actaApi.autocompleteAI(meetingId);
+      const updatedContent = JSON.parse(res.contentJson);
+      setContent(updatedContent);
+      toast.success('Acta autocompletada con IA con éxito.');
+      onUpdated?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al autocompletar con IA.');
+    } finally {
+      setAutocompleting(false);
     }
   }
 
@@ -138,6 +168,9 @@ export function ActaEditor({ meetingId, acta, canEdit, onUpdated }: ActaEditorPr
         <div className="flex gap-2">
           {editable && (
             <>
+              <Button variant="outline" disabled={saving || autocompleting} onClick={handleAutocompleteAI}>
+                {autocompleting ? 'Autocompletando...' : '✨ Autocompletar con IA'}
+              </Button>
               <Button variant="outline" disabled={saving} onClick={handleSave}>
                 {saving ? 'Guardando...' : 'Guardar borrador'}
               </Button>
@@ -225,19 +258,71 @@ export function ActaEditor({ meetingId, acta, canEdit, onUpdated }: ActaEditorPr
                 />
               </div>
               {topic.vote && (
-                <div className="text-xs space-y-1 rounded-md bg-muted/30 p-2">
-                  <p>
+                <div className="text-xs space-y-1 rounded-md bg-muted/30 p-2 border border-border/30">
+                  <p className="text-muted-foreground font-medium mb-1">
                     Votación {topic.vote.method === 'SECRET' ? 'Secreta' : 'Pública'}
                     {' '}({MAJORITY_TYPE_LABELS[topic.vote.majority] ?? topic.vote.majority})
                   </p>
-                  <p>A favor: {topic.vote.yes} | En contra: {topic.vote.no} | Abstención: {topic.vote.abstain}</p>
-                  {topic.vote.approved !== null && (
-                    <Badge variant={topic.vote.approved ? 'success' : 'destructive'} className="text-xs">
-                      {topic.vote.approved ? 'Aprobada' : 'Rechazada'}
-                    </Badge>
+
+                  {topic.vote.electionType && (
+                    <div className="text-xs pb-1 mb-1 border-b border-border/20 text-muted-foreground">
+                      <span className="font-semibold text-foreground">
+                        {topic.vote.electionType === 'RDR' ? 'Elección de RDR' : 'Elección de Sede'}:
+                      </span>{' '}
+                      {topic.vote.options && topic.vote.options.length > 0
+                        ? topic.vote.options.join(', ')
+                        : 'Sin opciones registradas'}
+                    </div>
                   )}
-                  {topic.vote.rdrTiebreaker && (
-                    <p className="text-muted-foreground">Desempate por el RDR (Art. 49)</p>
+                  
+                  {topic.vote.ballotType === 'CANDIDATE' && topic.vote.candidates ? (
+                    <div className="space-y-1 py-1">
+                      <p className="font-semibold text-foreground">Resultados de Elección:</p>
+                      <ul className="list-disc list-inside pl-1 space-y-0.5 text-muted-foreground">
+                        {topic.vote.candidates.map((c, idx) => (
+                          <li key={idx}>
+                            {c.name}: <span className="font-medium text-foreground">{c.votes} votos</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-muted-foreground">Abstención: {topic.vote.abstain} | Total emitidos: {topic.vote.total}</p>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      A favor: <span className="font-medium text-foreground">{topic.vote.yes}</span> | 
+                      En contra: <span className="font-medium text-foreground">{topic.vote.no}</span> | 
+                      Abstención: <span className="font-medium text-foreground">{topic.vote.abstain}</span>
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-2 mt-1">
+                    {topic.vote.approved !== null && (
+                      <Badge variant={topic.vote.approved ? 'success' : 'destructive'} className="text-[10px] px-1 py-0 h-4">
+                        {topic.vote.approved ? 'Aprobada' : 'Rechazada'}
+                      </Badge>
+                    )}
+                    {topic.vote.rdrTiebreaker && (
+                      <span className="text-muted-foreground text-[10px] italic">Desempate por el RDR (Art. 49)</span>
+                    )}
+                  </div>
+
+                  {topic.vote.method === 'PUBLIC' && topic.vote.detailedVotes && topic.vote.detailedVotes.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-border/40 space-y-1">
+                      <p className="font-semibold text-foreground text-[10px]">Desglose de Votos:</p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 text-[10px]">
+                        {topic.vote.detailedVotes.map((dv, idx) => {
+                          const choiceLabel = dv.choice === 'YES' ? 'A favor' : dv.choice === 'NO' ? 'En contra' : dv.choice === 'ABSTAIN' ? 'Abstención' : dv.choice;
+                          const candidateLabel = dv.candidateName ? ` (${dv.candidateName})` : '';
+                          const choiceColor = dv.choice === 'YES' ? 'text-success' : dv.choice === 'NO' ? 'text-destructive' : 'text-muted-foreground';
+                          return (
+                            <div key={idx} className="bg-background/60 px-1.5 py-0.5 rounded border border-border/20 flex items-center justify-between gap-1">
+                              <span className="truncate max-w-[80px]" title={dv.clubName}>{dv.clubName}</span>
+                              <span className={cn('shrink-0 text-right font-medium', choiceColor)}>{choiceLabel}{candidateLabel}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -257,6 +342,56 @@ export function ActaEditor({ meetingId, acta, canEdit, onUpdated }: ActaEditorPr
           ))}
         </CardContent>
       </Card>
+
+      {/* Motions */}
+      {content.motions && content.motions.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Mociones Propuestas</CardTitle>
+            <CardDescription>Mociones y resoluciones presentadas durante el transcurso de la reunión.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {content.motions.map((motion) => {
+              const motionStatusLabels: Record<string, string> = {
+                PROPOSED: 'Propuesta',
+                SECONDED: 'Secundada',
+                VOTING: 'En Votación',
+                APPROVED: 'Aprobada',
+                REJECTED: 'Rechazada',
+              };
+              const motionStatusVariant: Record<string, 'success' | 'destructive' | 'secondary' | 'outline' | 'warning'> = {
+                PROPOSED: 'outline',
+                SECONDED: 'warning',
+                VOTING: 'secondary',
+                APPROVED: 'success',
+                REJECTED: 'destructive',
+              };
+              const statusLabel = motionStatusLabels[motion.status] ?? motion.status;
+              const statusVariant = motionStatusVariant[motion.status] ?? 'secondary';
+
+              return (
+                <div key={motion.id} className="rounded-lg border border-border/60 bg-muted/10 p-3 space-y-1.5 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-semibold">{motion.title}</span>
+                    <Badge variant={statusVariant} className="text-xs">{statusLabel}</Badge>
+                  </div>
+                  {motion.description && (
+                    <p className="text-muted-foreground text-xs bg-background/50 p-2 rounded border border-border/30">
+                      {motion.description}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1 border-t border-border/20">
+                    <span>Proponente: <span className="font-medium text-foreground">{motion.proposedByClubName}</span></span>
+                    {motion.secondedByClubName && (
+                      <span>Secundada por: <span className="font-medium text-foreground">{motion.secondedByClubName}</span></span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Resolutions */}
       {content.resolutions.length > 0 && (

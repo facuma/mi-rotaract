@@ -167,6 +167,7 @@ model User {
   createdMeetings       Meeting[]           @relation("MeetingCreator")
   meetingParticipants   MeetingParticipant[]
   speakingRequests      SpeakingRequest[]
+  transcriptions        TopicTranscription[]
   reportsReviewed       Report[]
   committeesCoordinated Committee[]         @relation("CommitteeCoordinator")
   committeeMemberships  CommitteeMember[]
@@ -374,6 +375,7 @@ model Meeting {
   isInformationalOnly Boolean      @default(false)
   attendanceLocked   Boolean       @default(false)
   attendanceLockedAt DateTime?
+  transcriptionEnabled Boolean     @default(true)
   currentTopicId     String?
   createdById        String
   clubId             String
@@ -407,8 +409,10 @@ model AgendaTopic {
   type                TopicType   @default(DISCUSSION)
   estimatedDurationSec Int?
   status              TopicStatus @default(PENDING)
+  isAttendanceTopic   Boolean     @default(false)
   meeting             Meeting     @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   voteSessions        VoteSession[]
+  transcriptions      TopicTranscription[]
   @@index([meetingId, order])
 }
 
@@ -1349,4 +1353,18 @@ model MemberTransferRequest {
   @@index([memberId])
   @@index([fromClubId, status])
   @@index([toClubId, status])
+}
+
+model TopicTranscription {
+  id        String      @id @default(cuid())
+  topicId   String
+  userId    String?
+  userName  String
+  text      String      @db.Text
+  createdAt DateTime    @default(now())
+
+  topic     AgendaTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([topicId])
 }

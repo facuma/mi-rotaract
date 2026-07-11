@@ -28,9 +28,11 @@ services:
     ports:
       - "8091:8091"
     volumes:
-      - uploads:/app/apps/api/uploads
+      - uploads:/app/uploads
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8091/health"]
@@ -38,6 +40,19 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: mi-rotaract-redis
+    restart: unless-stopped
+    command: redis-server --requirepass redispassword
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redispassword", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:

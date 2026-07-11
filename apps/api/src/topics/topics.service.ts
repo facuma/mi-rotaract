@@ -12,6 +12,8 @@ import { BulkImportResult } from '../common/bulk/bulk-result.types';
 
 @Injectable()
 export class TopicsService {
+  private readonly rateLimits = new Map<string, number[]>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
@@ -381,5 +383,124 @@ export class TopicsService {
       where: { id: topicId, meetingId },
     });
     if (!t) throw new NotFoundException('Tema no encontrado');
+  }
+
+  async addTranscription(
+    meetingId: string,
+    topicId: string,
+    userId: string,
+    userName: string,
+    text: string,
+  ) {
+    const meeting = await this.prisma.meeting.findUnique({ where: { id: meetingId } });
+    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+    await this.assertTopicInMeeting(meetingId, topicId);
+
+    const transcription = await this.prisma.topicTranscription.create({
+      data: {
+        topicId,
+        userId,
+        userName,
+        text: text.trim(),
+      },
+    });
+
+    return transcription;
+  }
+
+  async transcribeAudio(
+    meetingId: string,
+    topicId: string,
+    userId: string,
+    userName: string,
+    file: Express.Multer.File,
+  ) {
+    const meeting = await this.prisma.meeting.findUnique({ where: { id: meetingId } });
+    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+    await this.assertTopicInMeeting(meetingId, topicId);
+
+    // Validate meeting is LIVE
+    if (meeting.status !== MeetingStatus.LIVE) {
+      throw new BadRequestException('La reunión debe estar LIVE para transcribir audio');
+    }
+
+    if (!meeting.transcriptionEnabled) {
+      throw new BadRequestException('La transcripción está deshabilitada para esta reunión');
+    }
+
+    // Validate active speaker
+    if (meeting.currentSpeakerId !== userId) {
+      throw new BadRequestException('Solo el orador activo puede enviar transcripciones de voz');
+    }
+
+    // Validate active topic
+    if (meeting.currentTopicId !== topicId) {
+      throw new BadRequestException('Solo se puede transcribir para el tema activo de la reunión');
+    }
+
+    // Apply sliding window rate limit
+    const now = Date.now();
+    const windowMs = 60 * 1000; // 1 minute
+    const maxRequests = 25; // max 25 audio chunks per minute
+    let userRequests = this.rateLimits.get(userId) || [];
+    userRequests = userRequests.filter(timestamp => now - timestamp < windowMs);
+    if (userRequests.length >= maxRequests) {
+      throw new BadRequestException('Límite de transcripción excedido. Por favor intente más tarde.');
+    }
+    userRequests.push(now);
+    this.rateLimits.set(userId, userRequests);
+
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Archivo de audio requerido');
+    }
+
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (!openaiKey) {
+      throw new BadRequestException('OpenAI API Key no configurada en el servidor');
+    }
+
+    try {
+      const formData = new (globalThis as any).FormData();
+      const blob = new (globalThis as any).Blob([file.buffer], { type: file.mimetype || 'audio/webm' });
+      formData.append('file', blob, file.originalname || 'audio.webm');
+      formData.append('model', 'whisper-1');
+      formData.append('language', 'es');
+
+      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openaiKey}`,
+        },
+        body: formData,
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
+      }
+
+      const data = (await response.json()) as { text: string };
+      const transcribedText = data.text?.trim() || '';
+
+      if (!transcribedText) {
+        return null;
+      }
+
+      // Save transcription to database
+      const transcription = await this.prisma.topicTranscription.create({
+        data: {
+          topicId,
+          userId,
+          userName,
+          text: transcribedText,
+        },
+      });
+
+      return transcription;
+    } catch (error) {
+      console.error('Error in Whisper transcription:', error);
+      throw new BadRequestException(`Error al transcribir audio: ${(error as Error).message}`);
+    }
   }
 }

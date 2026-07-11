@@ -80,4 +80,4 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=40s \
 
 USER nestjs
 
-CMD ["node", "apps/api/dist/src/main.js"]
+CMD ["sh", "-c", "cd apps/api && npx prisma migrate deploy && cd /app && node apps/api/dist/src/main.js"]

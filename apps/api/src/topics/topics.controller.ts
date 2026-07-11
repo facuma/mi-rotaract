@@ -14,6 +14,7 @@ import {
   Query,
   HttpCode,
   Res,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Role } from '@prisma/client';
@@ -25,6 +26,7 @@ import { MeetingsService } from '../meetings/meetings.service';
 import { CreateTopicDto } from './dto/create-topic.dto';
 import { ReorderTopicsDto } from './dto/reorder-topics.dto';
 import { UpdateTopicDto } from './dto/update-topic.dto';
+import { CreateTranscriptionDto } from './dto/transcription.dto';
 import { TopicsService } from './topics.service';
 
 @Controller('meetings/:meetingId/topics')
@@ -124,5 +126,36 @@ export class TopicsController {
     @Query('mode') mode?: 'partial' | 'strict',
   ) {
     return this.topicsService.bulkImport(meetingId, file, user.id, mode);
+  }
+
+  @Post(':topicId/transcriptions')
+  async addTranscription(
+    @Param('meetingId') meetingId: string,
+    @Param('topicId') topicId: string,
+    @Body() dto: CreateTranscriptionDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.topicsService.addTranscription(meetingId, topicId, user.id, user.fullName, dto.text);
+  }
+
+  @Post(':topicId/transcriptions/audio')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+      fileFilter: (req, file, callback) => {
+        if (!file.mimetype.startsWith('audio/') && file.mimetype !== 'application/octet-stream') {
+          return callback(new BadRequestException('Only audio files are allowed'), false);
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async transcribeAudio(
+    @Param('meetingId') meetingId: string,
+    @Param('topicId') topicId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.topicsService.transcribeAudio(meetingId, topicId, user.id, user.fullName, file);
   }
 }

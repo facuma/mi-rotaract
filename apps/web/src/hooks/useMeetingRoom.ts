@@ -35,6 +35,7 @@ export type MeetingSnapshot = {
   isDistrictMeeting?: boolean;
   isInformationalOnly?: boolean;
   attendanceLocked?: boolean;
+  meeting?: { transcriptionEnabled?: boolean };
   currentTopicId: string | null;
   currentTopic: { id: string; title: string; type: string } | null;
   topics: { id: string; title: string; order: number; type: string; status: string }[];
@@ -71,9 +72,12 @@ export type MeetingSnapshot = {
   clubAttendance?: {
     clubId: string;
     clubName: string;
+    isPresent?: boolean;
     connected: boolean;
     attendeeUserId: string | null;
     attendeeName: string | null;
+    addedAfterLock?: boolean;
+    isYellow?: boolean;
   }[];
   ownVote?: {
     voteSessionId: string;
@@ -133,6 +137,7 @@ function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
     isDistrictMeeting?: boolean;
     isInformationalOnly?: boolean;
     attendanceLocked?: boolean;
+    transcriptionEnabled?: boolean;
   } | undefined;
   const activeVote = data.activeVote as {
     voteSessionId?: string;
@@ -159,6 +164,7 @@ function normalizeSnapshot(data: Record<string, unknown>): MeetingSnapshot {
     isDistrictMeeting: meeting?.isDistrictMeeting,
     isInformationalOnly: meeting?.isInformationalOnly,
     attendanceLocked: meeting?.attendanceLocked,
+    meeting: { transcriptionEnabled: meeting?.transcriptionEnabled ?? true },
     currentTopicId: (data.currentTopic as { id?: string })?.id ?? null,
     currentTopic: data.currentTopic as MeetingSnapshot['currentTopic'],
     topics: (data.topics as MeetingSnapshot['topics']) ?? [],

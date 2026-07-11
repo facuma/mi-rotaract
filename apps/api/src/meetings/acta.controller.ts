@@ -7,6 +7,7 @@ import {
   Post,
   Res,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Role } from '@prisma/client';
@@ -33,6 +34,17 @@ export class ActaController {
   @Roles(Role.SECRETARY, Role.RDR)
   async generate(@Param('meetingId') meetingId: string) {
     return this.actaService.generateDraft(meetingId);
+  }
+
+  @Post('autocomplete-ai')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY)
+  async autocompleteAI(
+    @Param('meetingId') meetingId: string,
+    @Query('force') force?: string,
+  ) {
+    const forceOverwrite = force === 'true';
+    return this.actaService.autocompleteAI(meetingId, forceOverwrite);
   }
 
   @Patch()

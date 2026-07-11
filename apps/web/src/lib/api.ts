@@ -98,6 +98,8 @@ export const meetingsApi = {
   resume: (id: string) => api<unknown>(`/meetings/${id}/resume`, { method: 'POST' }),
   finish: (id: string) => api<unknown>(`/meetings/${id}/finish`, { method: 'POST' }),
   lockAttendance: (id: string) => api<unknown>(`/meetings/${id}/lock-attendance`, { method: 'POST' }),
+  toggleTranscription: (id: string, enabled: boolean) =>
+    api<unknown>(`/meetings/${id}/transcription`, { method: 'POST', body: JSON.stringify({ enabled }) }),
   schedule: (id: string) => api<unknown>(`/meetings/${id}/schedule`, { method: 'POST' }),
   assignParticipants: (id: string, participants: { userId: string; canVote?: boolean }[]) =>
     api<unknown>(`/meetings/${id}/participants`, {
@@ -131,6 +133,10 @@ export const meetingsApi = {
       method: 'POST',
       body: JSON.stringify({ userId }),
     }),
+  removeClubAttendance: (meetingId: string, clubId: string) =>
+    api<{ message: string }>(`/meetings/${meetingId}/clubs/${clubId}/attendance`, {
+      method: 'DELETE',
+    }),
 };
 
 export const queueApi = {
@@ -143,6 +149,8 @@ export const queueApi = {
     api<unknown>(`/meetings/${meetingId}/queue/current-speaker`, { method: 'POST', body: JSON.stringify({ userId }) }),
   setNextSpeaker: (meetingId: string, userId: string | null) =>
     api<unknown>(`/meetings/${meetingId}/queue/next-speaker`, { method: 'POST', body: JSON.stringify({ userId }) }),
+  releaseFloor: (meetingId: string) =>
+    api<{ ok: boolean }>(`/meetings/${meetingId}/queue/release-floor`, { method: 'POST' }),
 };
 
 export const votingApi = {
@@ -216,6 +224,27 @@ export const topicsApi = {
     downloadTemplate(`/meetings/${meetingId}/topics/bulk/template`, 'plantilla-agenda-reunion.csv'),
   bulkImport: (meetingId: string, file: File, mode?: 'partial' | 'strict') =>
     bulkImportApi(`/meetings/${meetingId}/topics/bulk`, file, mode),
+  addTranscription: (meetingId: string, topicId: string, text: string) =>
+    api<unknown>(`/meetings/${meetingId}/topics/${topicId}/transcriptions`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+  addTranscriptionAudio: (meetingId: string, topicId: string, audioBlob: Blob, filename = 'audio.webm') => {
+    const token = getToken();
+    const form = new FormData();
+    form.append('file', audioBlob, filename);
+    return fetch(`${API_URL}/meetings/${meetingId}/topics/${topicId}/transcriptions/audio`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || res.statusText);
+      }
+      return res.json();
+    });
+  },
 };
 
 export const motionsApi = {
@@ -1285,4 +1314,6 @@ export const actaApi = {
     a.click();
     URL.revokeObjectURL(url);
   },
+  autocompleteAI: (meetingId: string) =>
+    api<unknown>(`/meetings/${meetingId}/acta/autocomplete-ai`, { method: 'POST' }),
 };
