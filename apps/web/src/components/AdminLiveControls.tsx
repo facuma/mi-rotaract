@@ -4,6 +4,7 @@ import { useCallback, useState, useEffect } from 'react';
 import { votingApi, timersApi, topicsApi, queueApi, meetingsApi, usersApi, clubsApi, motionsApi, districtApi } from '@/lib/api';
 import { VoteReadyModal } from '@/components/meetings/VoteReadyModal';
 import { VoteResultSummary } from '@/components/VoteResultSummary';
+import { TakeFloorControl } from '@/components/meetings/TakeFloorControl';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -58,9 +59,12 @@ type AdminAttendanceControlProps = {
   clubAttendance?: {
     clubId: string;
     clubName: string;
+    isPresent?: boolean;
     connected: boolean;
     attendeeUserId: string | null;
     attendeeName: string | null;
+    addedAfterLock?: boolean;
+    isYellow?: boolean;
   }[];
   attendanceLocked?: boolean;
   clubsPresent?: number;
@@ -77,9 +81,25 @@ export function AdminAttendanceControl({
   const [selectedClub, setSelectedClub] = useState<{
     clubId: string;
     clubName: string;
+    isPresent?: boolean;
+    connected: boolean;
     attendeeUserId: string | null;
     attendeeName: string | null;
+    addedAfterLock?: boolean;
+    isYellow?: boolean;
   } | null>(null);
+
+  const [allClubs, setAllClubs] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    clubsApi.list(false)
+      .then((res: any) => {
+        setAllClubs(res || []);
+      })
+      .catch((err) => {
+        console.error('Error fetching all clubs:', err);
+      });
+  }, []);
 
   async function handleLockAttendance() {
     setLockingAttendance(true);
@@ -93,7 +113,10 @@ export function AdminAttendanceControl({
     }
   }
 
-  if (clubAttendance.length === 0) return null;
+  const presentCount = clubAttendance.filter((c) => c.isPresent).length;
+  const absentOfflineClubs = allClubs.filter(
+    (club) => !clubAttendance.some((c) => c.clubId === club.id)
+  );
 
   return (
     <>
@@ -104,7 +127,7 @@ export function AdminAttendanceControl({
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold tabular-nums">
-              {clubAttendance.filter((c) => c.connected).length} de {clubAttendance.length} conectados
+              {presentCount} presentes
             </span>
             {attendanceLocked ? (
               <Badge variant="secondary" className="text-xs">Cerrada</Badge>
@@ -120,32 +143,86 @@ export function AdminAttendanceControl({
               </Button>
             )}
           </div>
+
           <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+            {clubAttendance.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center w-full py-2 bg-muted/20 rounded-md border border-dashed border-border/40">
+                Ningún club conectado o presente aún.
+              </p>
+            )}
             {clubAttendance.map((c) => (
               <button
                 key={c.clubId}
                 type="button"
                 onClick={() => setSelectedClub(c)}
                 className={cn(
-                  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] cursor-pointer hover:opacity-80 transition-opacity text-left',
-                  c.connected
-                    ? 'border border-success/30 bg-success/10 text-success font-medium'
-                    : 'border border-border bg-muted/30 text-muted-foreground',
+                  'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] cursor-pointer hover:opacity-80 transition-opacity text-left border',
+                  c.isYellow
+                    ? 'border-warning/30 bg-warning/10 text-warning font-medium'
+                    : c.isPresent
+                      ? c.addedAfterLock
+                        ? 'border-warning/30 bg-warning/10 text-warning font-medium'
+                        : 'border-success/30 bg-success/10 text-success font-medium'
+                      : 'border-border bg-muted/30 text-muted-foreground',
                 )}
               >
-                <span className={cn('size-1.5 rounded-full', c.connected ? 'bg-success animate-pulse' : 'bg-muted-foreground/50')} />
+                <span
+                  className={cn(
+                    'size-1.5 rounded-full',
+                    c.isYellow
+                      ? 'bg-warning animate-pulse'
+                      : c.connected
+                        ? 'bg-success animate-pulse'
+                        : 'bg-muted-foreground/50',
+                  )}
+                />
                 {c.clubName}
               </button>
             ))}
           </div>
+
+          {absentOfflineClubs.length > 0 && (
+            <div className="pt-2 border-t border-border/40">
+              <Select
+                value=""
+                onValueChange={(clubId) => {
+                  const club = allClubs.find((c) => c.id === clubId);
+                  if (club) {
+                    setSelectedClub({
+                      clubId: club.id,
+                      clubName: club.name,
+                      isPresent: false,
+                      connected: false,
+                      attendeeUserId: null,
+                      attendeeName: null,
+                      addedAfterLock: false,
+                      isYellow: false,
+                    });
+                  }
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Registrar presencia manualmente..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {absentOfflineClubs.map((club) => (
+                    <SelectItem key={club.id} value={club.id}>
+                      {club.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {selectedClub && (
-        <ChangeRepresentativeDialog
+        <ClubAttendanceDialog
           meetingId={meetingId}
           clubId={selectedClub.clubId}
           clubName={selectedClub.clubName}
+          isPresent={selectedClub.isPresent}
           currentAttendeeId={selectedClub.attendeeUserId}
           currentAttendeeName={selectedClub.attendeeName}
           open={!!selectedClub}
@@ -156,10 +233,11 @@ export function AdminAttendanceControl({
   );
 }
 
-function ChangeRepresentativeDialog({
+function ClubAttendanceDialog({
   meetingId,
   clubId,
   clubName,
+  isPresent,
   currentAttendeeId,
   currentAttendeeName,
   open,
@@ -168,6 +246,7 @@ function ChangeRepresentativeDialog({
   meetingId: string;
   clubId: string;
   clubName: string;
+  isPresent?: boolean;
   currentAttendeeId: string | null;
   currentAttendeeName: string | null;
   open: boolean;
@@ -183,9 +262,12 @@ function ChangeRepresentativeDialog({
     districtApi.clubs
       .get(clubId)
       .then((res: any) => {
-        setMembers(res.authorities || []);
+        const authorities = res.authorities || [];
+        setMembers(authorities);
         if (currentAttendeeId) {
           setSelectedUserId(currentAttendeeId);
+        } else if (authorities.length > 0) {
+          setSelectedUserId(authorities[0].userId);
         }
       })
       .catch((err) => {
@@ -201,10 +283,23 @@ function ChangeRepresentativeDialog({
     setLoading(true);
     try {
       await meetingsApi.updateClubRepresentative(meetingId, clubId, selectedUserId);
-      toast.success('Representante actualizado');
+      toast.success(isPresent ? 'Representante actualizado' : 'Asistencia registrada con éxito');
       onClose();
     } catch (err: any) {
-      toast.error(err.message || 'Error al actualizar representante');
+      toast.error(err.message || 'Error al guardar');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemovePresence = async () => {
+    setLoading(true);
+    try {
+      await meetingsApi.removeClubAttendance(meetingId, clubId);
+      toast.success('El club ha sido quitado de la lista de presentes');
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message || 'Error al quitar asistencia');
     } finally {
       setLoading(false);
     }
@@ -214,22 +309,30 @@ function ChangeRepresentativeDialog({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Cambiar Representante — {clubName}</DialogTitle>
+          <DialogTitle>
+            {isPresent ? `Cambiar Representante — ${clubName}` : `Registrar Asistencia — ${clubName}`}
+          </DialogTitle>
           <DialogDescription>
-            Selecciona el socio que representará al club y ejercerá el voto en esta reunión.
+            {isPresent
+              ? 'Selecciona el socio que representará al club y ejercerá el voto.'
+              : 'Registra la presencia del club en la reunión seleccionando su representante.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-3">
-          <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-foreground">Representante Actual</label>
-            <p className="text-sm text-muted-foreground bg-muted/50 p-2 rounded-md border border-border/40">
-              {currentAttendeeName || 'Ninguno asignado'}
-            </p>
-          </div>
+          {isPresent && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-foreground">Representante Actual</label>
+              <p className="text-sm text-muted-foreground bg-muted/50 p-2 rounded-md border border-border/40">
+                {currentAttendeeName || 'Ninguno asignado'}
+              </p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-foreground">Nuevo Representante</label>
+            <label className="text-sm font-semibold text-foreground">
+              {isPresent ? 'Nuevo Representante' : 'Seleccionar Representante'}
+            </label>
             {loading && members.length === 0 ? (
               <div className="animate-pulse h-10 bg-muted rounded-md" />
             ) : (
@@ -249,13 +352,22 @@ function ChangeRepresentativeDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} disabled={loading || !selectedUserId}>
-            {loading ? 'Guardando...' : 'Asignar como Representante'}
-          </Button>
+        <DialogFooter className="flex flex-col sm:flex-row sm:justify-between gap-2">
+          <div className="flex justify-start">
+            {isPresent && (
+              <Button variant="destructive" onClick={handleRemovePresence} disabled={loading}>
+                Quitar de presentes
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={onClose} disabled={loading}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={loading || !selectedUserId}>
+              {loading ? 'Guardando...' : isPresent ? 'Asignar' : 'Marcar Presente'}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -473,6 +585,7 @@ type AdminSpeakerControlProps = {
   meetingId: string;
   currentSpeaker?: Speaker | null;
   nextSpeaker?: Speaker | null;
+  currentTopicId?: string | null;
   className?: string;
 };
 
@@ -480,6 +593,7 @@ export function AdminSpeakerControl({
   meetingId,
   currentSpeaker,
   nextSpeaker,
+  currentTopicId,
   className,
 }: AdminSpeakerControlProps) {
   async function handleSetCurrentSpeaker(userId: string | null) {
@@ -544,6 +658,12 @@ export function AdminSpeakerControl({
             </Button>
           </div>
         ) : null}
+
+        <TakeFloorControl
+          meetingId={meetingId}
+          currentSpeaker={currentSpeaker}
+          currentTopicId={currentTopicId}
+        />
       </CardContent>
     </Card>
   );
@@ -1522,6 +1642,88 @@ export function AdminMotionsControl({
             })}
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ==========================================
+// 5b. ADMIN TRANSCRIPTION CONTROL
+// ==========================================
+type AdminTranscriptionControlProps = {
+  meetingId: string;
+  transcriptionEnabled?: boolean;
+  className?: string;
+};
+
+export function AdminTranscriptionControl({
+  meetingId,
+  transcriptionEnabled = true,
+  className,
+}: AdminTranscriptionControlProps) {
+  const [loading, setLoading] = useState(false);
+
+  const handleToggle = async () => {
+    setLoading(true);
+    try {
+      await meetingsApi.toggleTranscription(meetingId, !transcriptionEnabled);
+      toast.success(
+        !transcriptionEnabled
+          ? '🎙️ Transcripción habilitada. Los participantes podrán transcribir al hablar.'
+          : '🔇 Transcripción deshabilitada. No se grabará audio hasta que se reactive.',
+      );
+    } catch {
+      toast.error('No se pudo cambiar el estado de la transcripción.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card className={cn('border', transcriptionEnabled ? 'border-primary/30' : 'border-border', className)}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-base">🎙️</span>
+            <CardTitle className="text-sm font-semibold">Transcripción automática</CardTitle>
+          </div>
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
+              transcriptionEnabled
+                ? 'bg-primary/15 text-primary'
+                : 'bg-muted text-muted-foreground',
+            )}
+          >
+            <span
+              className={cn(
+                'size-1.5 rounded-full',
+                transcriptionEnabled ? 'bg-primary animate-pulse' : 'bg-muted-foreground/50',
+              )}
+            />
+            {transcriptionEnabled ? 'Activa' : 'Inactiva'}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          {transcriptionEnabled
+            ? 'Los participantes que reciban la palabra verán el modal para activar su micrófono y se grabará audio para el acta.'
+            : 'La transcripción está desactivada. Los participantes no verán el modal de micrófono aunque se les otorgue la palabra.'}
+        </p>
+        <Button
+          variant={transcriptionEnabled ? 'outline' : 'default'}
+          size="sm"
+          className="w-full"
+          onClick={handleToggle}
+          disabled={loading}
+        >
+          {loading
+            ? 'Actualizando...'
+            : transcriptionEnabled
+              ? '🔇 Deshabilitar transcripción'
+              : '🎙️ Habilitar transcripción'}
+        </Button>
       </CardContent>
     </Card>
   );

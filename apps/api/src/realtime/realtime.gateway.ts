@@ -13,6 +13,7 @@ import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { VotingService } from '../voting/voting.service';
 import { QuorumService } from '../meetings/quorum.service';
+import { parseCorsWhitelist } from '../lib/cors-origin';
 
 const MEETING_ROOM_PREFIX = 'meeting:';
 
@@ -25,13 +26,32 @@ interface SocketWithData {
   rooms?: Set<string> | string[];
 }
 
-@WebSocketGateway({ cors: { origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000' } })
+@WebSocketGateway({
+  cors: {
+    origin: (origin: string, callback: (err: Error | null, allow?: boolean) => void) => {
+      const whitelist = parseCorsWhitelist(process.env.CORS_ORIGIN);
+      if (whitelist.length === 0 || !origin || whitelist.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    },
+    credentials: true,
+  },
+})
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;
 
   // In-memory tracking: meetingId -> Map<clubId, Set<socketId>>
   private connectedClubs = new Map<string, Map<string, Set<string>>>();
+  // In-memory tracking: meetingId -> Map<userId, Set<socketId>>
+  private connectedUsers = new Map<string, Map<string, Set<string>>>();
+  // Debounce timeouts per meetingId
+  private broadcastDebounces = new Map<string, NodeJS.Timeout>();
+  // Cached list of enabled clubs for district meetings
+  private enabledClubsCache: { id: string; name: string }[] | null = null;
+  private enabledClubsLastFetched = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -82,6 +102,28 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
   }
 
+  private trackUserConnect(meetingId: string, userId: string, socketId: string) {
+    if (!this.connectedUsers.has(meetingId)) {
+      this.connectedUsers.set(meetingId, new Map());
+    }
+    const users = this.connectedUsers.get(meetingId)!;
+    if (!users.has(userId)) users.set(userId, new Set());
+    users.get(userId)!.add(socketId);
+  }
+
+  private trackUserDisconnect(meetingId: string, userId: string, socketId: string): boolean {
+    const users = this.connectedUsers.get(meetingId);
+    if (!users) return true;
+    const userSockets = users.get(userId);
+    if (!userSockets) return true;
+    userSockets.delete(socketId);
+    if (userSockets.size === 0) {
+      users.delete(userId);
+      return true; // Last tab/socket closed
+    }
+    return false; // Still active on other tabs
+  }
+
   handleConnection() {}
 
   async handleDisconnect(client: SocketWithData) {
@@ -90,7 +132,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     for (const meetingId of meetingIds) {
       this.trackClubDisconnect(meetingId, client.id);
       if (userId) {
-        await this.markParticipantLeft(meetingId, userId);
+        const lastTabClosed = this.trackUserDisconnect(meetingId, userId, client.id);
+        if (lastTabClosed) {
+          await this.markParticipantLeft(meetingId, userId);
+        }
       }
     }
     client.data = {};
@@ -117,6 +162,34 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('meeting.join')
   async handleMeetingJoin(client: SocketWithData, payload: { meetingId: string; userId?: string }) {
     return this.doJoinMeeting(client, payload);
+  }
+
+  @SubscribeMessage('meeting.toggleTranscription')
+  async handleToggleTranscription(
+    client: SocketWithData,
+    payload: { meetingId: string; enabled: boolean },
+  ) {
+    const userId = client.data?.userId || this.getUserIdFromClient(client);
+    if (!userId) {
+      return { event: 'error', data: { message: 'No autenticado' } };
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    const isDistrictAdmin = user?.role === 'SECRETARY' || user?.role === 'RDR' || user?.role === 'SUPERADMIN';
+    if (!isDistrictAdmin) {
+      return { event: 'error', data: { message: 'No autorizado. Solo el secretario distrital puede habilitar/deshabilitar la transcripción.' } };
+    }
+
+    const { meetingId, enabled } = payload;
+    await this.prisma.meeting.update({
+      where: { id: meetingId },
+      data: { transcriptionEnabled: enabled },
+    });
+
+    await this.broadcastSnapshot(meetingId);
+    return { event: 'meeting.transcriptionToggled', data: { enabled } };
   }
 
   private async doJoinMeeting(
@@ -148,85 +221,93 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     let isDelegate = false;
 
     if (meeting.isDistrictMeeting) {
-      if (!isDistrictAdmin) {
-        // Check if user is already a registered participant in the meeting
-        const existingParticipant = await this.prisma.meetingParticipant.findUnique({
-          where: { meetingId_userId: { meetingId, userId } },
+      // Check if user is already a registered participant in the meeting
+      const existingParticipant = await this.prisma.meetingParticipant.findUnique({
+        where: { meetingId_userId: { meetingId, userId } },
+      });
+
+      if (existingParticipant) {
+        isDelegate = existingParticipant.isDelegate;
+        targetClubId = existingParticipant.clubId;
+      } else {
+        // Check if user is delegate
+        const delegationAsDelegate = await this.prisma.cartaPoder.findFirst({
+          where: { meetingId, delegateUserId: userId, status: 'VERIFIED' },
         });
 
-        if (existingParticipant) {
-          isDelegate = existingParticipant.isDelegate;
-          targetClubId = existingParticipant.clubId;
-        } else {
-          // Check if user is delegate
-          const delegationAsDelegate = await this.prisma.cartaPoder.findFirst({
-            where: { meetingId, delegateUserId: userId, status: 'VERIFIED' },
-          });
+        // Check user membership / presidency
+        const membership = await this.prisma.membership.findFirst({
+          where: { userId },
+          select: { clubId: true, isPresident: true },
+        });
+        let isPresidentOfClub = membership?.isPresident ?? false;
+        const userClubId = membership?.clubId ?? null;
 
-          // Check user membership / presidency
-          const membership = await this.prisma.membership.findFirst({
-            where: { userId },
-            select: { clubId: true, isPresident: true },
+        if (!isPresidentOfClub && userClubId) {
+          const member = await this.prisma.member.findFirst({
+            where: { userId, clubId: userClubId, deletedAt: null },
           });
-          let isPresidentOfClub = membership?.isPresident ?? false;
-          const userClubId = membership?.clubId ?? null;
-
-          if (!isPresidentOfClub && userClubId) {
-            const member = await this.prisma.member.findFirst({
-              where: { userId, clubId: userClubId, deletedAt: null },
+          if (member) {
+            const meetingDate = meeting.scheduledAt || new Date();
+            const meetingPeriod = await this.prisma.districtPeriod.findFirst({
+              where: {
+                startDate: { lte: meetingDate },
+                endDate: { gte: meetingDate },
+              },
             });
-            if (member) {
-              const meetingDate = meeting.scheduledAt || new Date();
-              const meetingPeriod = await this.prisma.districtPeriod.findFirst({
-                where: {
-                  startDate: { lte: meetingDate },
-                  endDate: { gte: meetingDate },
-                },
-              });
-              const currentPeriod = await this.prisma.districtPeriod.findFirst({
-                where: { isCurrent: true },
-              });
-              const periodIds = [meetingPeriod?.id, currentPeriod?.id].filter((id): id is string => !!id);
-              const nextPeriod = await this.prisma.districtPeriod.findFirst({
-                where: {
-                  startDate: { gt: currentPeriod?.endDate || new Date() },
-                },
-                orderBy: { startDate: 'asc' },
-              });
-              if (nextPeriod) periodIds.push(nextPeriod.id);
-              const uniquePeriodIds = Array.from(new Set(periodIds));
+            const currentPeriod = await this.prisma.districtPeriod.findFirst({
+              where: { isCurrent: true },
+            });
+            const periodIds = [meetingPeriod?.id, currentPeriod?.id].filter((id): id is string => !!id);
+            const nextPeriod = await this.prisma.districtPeriod.findFirst({
+              where: {
+                startDate: { gt: currentPeriod?.endDate || new Date() },
+              },
+              orderBy: { startDate: 'asc' },
+            });
+            if (nextPeriod) periodIds.push(nextPeriod.id);
+            const uniquePeriodIds = Array.from(new Set(periodIds));
 
-              const presidency = await this.prisma.clubPresidency.findFirst({
-                where: {
-                  clubId: userClubId,
-                  memberId: member.id,
-                  periodId: { in: uniquePeriodIds },
-                  status: { in: ['ACTIVE', 'ELECTED'] },
-                },
-              });
-              if (presidency) {
-                isPresidentOfClub = true;
-              }
+            const presidency = await this.prisma.clubPresidency.findFirst({
+              where: {
+                clubId: userClubId,
+                memberId: member.id,
+                periodId: { in: uniquePeriodIds },
+                status: { in: ['ACTIVE', 'ELECTED'] },
+              },
+            });
+            if (presidency) {
+              isPresidentOfClub = true;
             }
           }
+        }
 
-          const delegationForClub = userClubId
-            ? await this.prisma.cartaPoder.findFirst({
-                where: { meetingId, clubId: userClubId, status: 'VERIFIED' },
-              })
-            : null;
+        const delegationForClub = userClubId
+          ? await this.prisma.cartaPoder.findFirst({
+              where: { meetingId, clubId: userClubId, status: 'VERIFIED' },
+            })
+          : null;
 
-          if (delegationAsDelegate) {
-            isDelegate = true;
-            targetClubId = delegationAsDelegate.clubId;
-          } else if (isPresidentOfClub && !delegationForClub) {
-            isDelegate = false;
-            targetClubId = userClubId;
-          } else if (isPresidentOfClub && delegationForClub) {
+        if (delegationAsDelegate) {
+          isDelegate = true;
+          targetClubId = delegationAsDelegate.clubId;
+        } else if (isPresidentOfClub && !delegationForClub) {
+          isDelegate = false;
+          targetClubId = userClubId;
+        } else if (isPresidentOfClub && delegationForClub) {
+          if (!isDistrictAdmin) {
             return { event: 'error', data: { message: 'El acceso ha sido delegado para este club' } };
-          } else {
+          }
+          // District admin whose club delegated: join as moderator, use their own club
+          targetClubId = userClubId;
+        } else {
+          if (!isDistrictAdmin) {
             return { event: 'error', data: { message: 'Solo el presidente o el delegado verificado pueden ingresar' } };
           }
+          // District admin (SECRETARY / RDR / SUPERADMIN) without isPresident flag:
+          // resolve their club from membership so they register attendance for their club.
+          // If they have no club membership at all, they join as a moderator-only observer.
+          targetClubId = userClubId;
         }
       }
     } else {
@@ -249,42 +330,72 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       where: { meetingId_userId: { meetingId, userId } },
     });
 
-    if (!participant && targetClubId) {
-      participant = await this.prisma.meetingParticipant.create({
-        data: {
-          meetingId,
-          userId,
-          clubId: targetClubId,
-          isDelegate: isDelegate,
-          canVote: true,
-          attendanceStatus: 'JOINED',
-          joinedAt: new Date(),
-        },
-      });
-    } else if (participant && targetClubId) {
-      participant = await this.prisma.meetingParticipant.update({
-        where: { id: participant.id },
-        data: {
-          clubId: targetClubId,
-          isDelegate: isDelegate,
-          canVote: true,
-        },
-      });
+    // ¿El secretario designó explícitamente a este usuario como representante de un club?
+    const designation = await this.prisma.clubMeetingAttendance.findFirst({
+      where: { meetingId, attendeeUserId: userId },
+      select: { clubId: true },
+    });
+
+    // Los moderadores (secretario/RDR/superadmin) entran como observadores —no representan
+    // club, no votan, no cuentan para el quórum— SALVO que el secretario los haya designado
+    // explícitamente como representante de un club (updateClubRepresentative).
+    const joinAsObserver = isDistrictAdmin && !designation;
+    if (isDistrictAdmin && designation) {
+      targetClubId = designation.clubId;
     }
 
-    if (participant) {
-      // Resolve clubId if missing
-      let clubId = participant.clubId;
-      if (!clubId) {
-        const membership = await this.prisma.membership.findFirst({
-          where: { userId },
-          select: { clubId: true },
+    if (joinAsObserver) {
+      // Moderador observador: NO se agrega a la lista de participantes, no registra
+      // asistencia y no cuenta para el quórum. Solo se lo trackea como conectado.
+      this.trackUserConnect(meetingId, userId, client.id);
+
+      // Si quedó un registro de participante observador (sin club ni voto) creado por
+      // una versión anterior, se elimina: los moderadores no van en la lista.
+      if (participant && !participant.clubId && !participant.canVote) {
+        try {
+          await this.prisma.meetingParticipant.delete({ where: { id: participant.id } });
+          await this.broadcastSnapshot(meetingId);
+        } catch { /* non-blocking */ }
+      }
+    } else {
+      if (!participant && targetClubId) {
+        participant = await this.prisma.meetingParticipant.create({
+          data: {
+            meetingId,
+            userId,
+            clubId: targetClubId,
+            isDelegate: isDelegate,
+            canVote: true,
+            attendanceStatus: 'JOINED',
+            joinedAt: new Date(),
+          },
         });
-        clubId = membership?.clubId ?? null;
-        if (clubId) {
+      } else if (participant && targetClubId) {
+        participant = await this.prisma.meetingParticipant.update({
+          where: { id: participant.id },
+          data: {
+            clubId: targetClubId,
+            isDelegate: isDelegate,
+            canVote: true,
+          },
+        });
+      }
+
+      this.trackUserConnect(meetingId, userId, client.id);
+
+      if (participant) {
+        let clubId = participant.clubId;
+
+        // Resolve clubId if missing (solo para representantes de club)
+        if (!clubId) {
+          const membership = await this.prisma.membership.findFirst({
+            where: { userId },
+            select: { clubId: true },
+          });
+          clubId = membership?.clubId ?? null;
           await this.prisma.meetingParticipant.update({
             where: { id: participant.id },
-            data: { clubId, attendanceStatus: 'JOINED', ...(participant.joinedAt ? {} : { joinedAt: new Date() }) },
+            data: { ...(clubId ? { clubId } : {}), attendanceStatus: 'JOINED', ...(participant.joinedAt ? {} : { joinedAt: new Date() }) },
           });
         } else {
           await this.prisma.meetingParticipant.update({
@@ -292,32 +403,27 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
             data: { attendanceStatus: 'JOINED', ...(participant.joinedAt ? {} : { joinedAt: new Date() }) },
           });
         }
-      } else {
-        await this.prisma.meetingParticipant.update({
-          where: { id: participant.id },
-          data: { attendanceStatus: 'JOINED', ...(participant.joinedAt ? {} : { joinedAt: new Date() }) },
-        });
-      }
 
-      // Track club connection and register attendance
-      if (clubId) {
-        this.trackClubConnect(meetingId, clubId, client.id);
-        if (!meeting.attendanceLocked) {
-          try {
-            await this.quorumService.recordClubAttendance(meetingId, clubId, userId, participant.isDelegate);
-            await this.quorumService.recheckAndUpdateQuorum(meetingId);
-          } catch { /* non-blocking */ }
+        // Track club connection and register attendance
+        if (clubId) {
+          this.trackClubConnect(meetingId, clubId, client.id);
+          if (!meeting.attendanceLocked) {
+            try {
+              await this.quorumService.recordClubAttendance(meetingId, clubId, userId, participant.isDelegate);
+              await this.quorumService.recheckAndUpdateQuorum(meetingId);
+            } catch { /* non-blocking */ }
+          }
         }
-      }
 
-      await this.audit.log({
-        meetingId,
-        actorUserId: userId,
-        action: 'participant.joined',
-        entityType: 'MeetingParticipant',
-        entityId: participant.id,
-      });
-      await this.broadcastSnapshot(meetingId);
+        await this.audit.log({
+          meetingId,
+          actorUserId: userId,
+          action: 'participant.joined',
+          entityType: 'MeetingParticipant',
+          entityId: participant.id,
+        });
+        await this.broadcastSnapshot(meetingId);
+      }
     }
     const snapshot = await this.buildSnapshot(meetingId, userId);
     return { event: 'meeting.snapshot', data: snapshot };
@@ -349,7 +455,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (meetingId) {
       this.trackClubDisconnect(meetingId, client.id);
       const userId = client.data?.userId;
-      if (userId) await this.markParticipantLeft(meetingId, userId);
+      if (userId) {
+        const lastTabClosed = this.trackUserDisconnect(meetingId, userId, client.id);
+        if (lastTabClosed) {
+          await this.markParticipantLeft(meetingId, userId);
+        }
+      }
       if (Array.isArray(client.data?.meetingIds)) {
         client.data.meetingIds = client.data.meetingIds.filter((id) => id !== meetingId);
       }
@@ -389,8 +500,37 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   async broadcastSnapshot(meetingId: string) {
-    const snapshot = await this.buildSnapshot(meetingId);
-    await this.emitToMeeting(meetingId, 'meeting.snapshot', snapshot);
+    const existingTimeout = this.broadcastDebounces.get(meetingId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+
+    const timeout = setTimeout(async () => {
+      this.broadcastDebounces.delete(meetingId);
+      try {
+        const snapshot = await this.buildSnapshot(meetingId);
+        await this.emitToMeeting(meetingId, 'meeting.snapshot', snapshot);
+      } catch (err: any) {
+        const msg = err && err.message ? err.message : String(err);
+        console.error(`Error broadcasting snapshot for meeting ${meetingId}: ${msg}`);
+      }
+    }, 250);
+
+    this.broadcastDebounces.set(meetingId, timeout);
+  }
+
+  private async getCachedEnabledClubs() {
+    const now = Date.now();
+    const cacheTTL = 5 * 60 * 1000; // 5 minutes TTL
+    if (!this.enabledClubsCache || now - this.enabledClubsLastFetched > cacheTTL) {
+      this.enabledClubsCache = await this.prisma.club.findMany({
+        where: { status: 'ACTIVE', enabledForDistrictMeetings: true },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      });
+      this.enabledClubsLastFetched = now;
+    }
+    return this.enabledClubsCache;
   }
 
   private async buildSnapshot(meetingId: string, userId?: string) {
@@ -403,7 +543,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
           include: { topic: true, candidates: { orderBy: { order: 'asc' } } },
         },
         participants: { include: { user: { select: { id: true, fullName: true } } } },
-        clubAttendances: { include: { club: { select: { id: true, name: true } } } },
+        clubAttendances: { include: { club: { select: { id: true, name: true, status: true } } } },
         speakingRequests: {
           where: { status: { in: ['PENDING', 'ACCEPTED'] } },
           orderBy: { position: 'asc' },
@@ -418,7 +558,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const openVoteSession = meeting.voteSessions[0];
 
     // Run all independent queries in parallel
-    const [ownVote, voteResult, activeTimers, currentSpeaker, nextSpeaker, votedClubs, motions] = await Promise.all([
+    const [ownVote, voteResult, activeTimers, currentSpeaker, nextSpeaker, votedClubs, motions, enabledClubs] = await Promise.all([
       // Own vote
       userId && openVoteSession
         ? this.prisma.vote.findUnique({
@@ -498,6 +638,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
           secondedByClub: { select: { id: true, name: true } },
         },
       }),
+      // Enabled Clubs
+      this.getCachedEnabledClubs(),
     ]);
 
     const votedClubIds = votedClubs
@@ -519,7 +661,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         elapsedSec: elapsed,
       };
     });
-    const clubsPresent = this.getConnectedClubCount(meetingId);
+    // Quórum autoritativo: present/required/met salen todos de checkQuorum
+    // (clubes habilitados; los moderadores no registran asistencia y no cuentan).
+    const quorumStatus = meeting.isDistrictMeeting
+      ? await this.quorumService.checkQuorum(meetingId)
+      : null;
 
     return {
       meeting: {
@@ -536,12 +682,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         startedAt: meeting.startedAt?.toISOString() ?? null,
         scheduledAt: meeting.scheduledAt?.toISOString() ?? null,
         endedAt: meeting.endedAt?.toISOString() ?? null,
+        transcriptionEnabled: meeting.transcriptionEnabled,
       },
-      quorum: meeting.isDistrictMeeting ? {
-        required: meeting.quorumRequired ?? 0,
-        present: clubsPresent,
-        met: meeting.quorumMet,
-        isInformationalOnly: meeting.isInformationalOnly,
+      quorum: quorumStatus ? {
+        required: quorumStatus.required,
+        present: quorumStatus.present,
+        met: quorumStatus.met,
+        isInformationalOnly: quorumStatus.isInformationalOnly,
+        connected: this.getConnectedClubCount(meetingId),
       } : null,
       currentTopic: currentTopic
         ? {
@@ -620,16 +768,36 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         attendanceStatus: p.attendanceStatus,
         canVote: p.canVote,
       })),
-      clubAttendance: meeting.clubAttendances.map((a) => {
-        const participant = meeting.participants.find((p) => p.userId === a.attendeeUserId);
-        return {
-          clubId: a.clubId,
-          clubName: a.club.name,
-          connected: this.getConnectedClubIds(meetingId).includes(a.clubId),
-          attendeeUserId: a.attendeeUserId,
-          attendeeName: participant?.user?.fullName || null,
-        };
-      }),
+      clubAttendance: enabledClubs
+        .map((club) => {
+          const attendance = meeting.clubAttendances.find((a) => a.clubId === club.id);
+          const participant = attendance && attendance.attendeeUserId
+            ? meeting.participants.find((p) => p.userId === attendance.attendeeUserId)
+            : null;
+
+          const isConnected = this.getConnectedClubIds(meetingId).includes(club.id);
+          const isPresent = !!attendance;
+
+          let addedAfterLock = false;
+          if (meeting.attendanceLocked && meeting.attendanceLockedAt && attendance) {
+            addedAfterLock = attendance.createdAt.getTime() > meeting.attendanceLockedAt.getTime();
+          }
+
+          // A club is "yellow" if attendance is locked, they are not in the voting base (isPresent is false), but are connected
+          const isYellow = meeting.attendanceLocked && !isPresent && isConnected;
+
+          return {
+            clubId: club.id,
+            clubName: club.name,
+            isPresent,
+            connected: isConnected,
+            attendeeUserId: attendance?.attendeeUserId ?? null,
+            attendeeName: participant?.user?.fullName || null,
+            addedAfterLock: addedAfterLock || isYellow,
+            isYellow,
+          };
+        })
+        .filter((c) => c.isPresent || c.connected),
     };
   }
 }

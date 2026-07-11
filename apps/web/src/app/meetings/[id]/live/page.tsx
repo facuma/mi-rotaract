@@ -23,6 +23,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { LiveTranscriber } from '@/components/meetings/LiveTranscriber';
+import { TakeFloorControl } from '@/components/meetings/TakeFloorControl';
 
 export default function ParticipantLivePage() {
   const params = useParams();
@@ -66,6 +68,14 @@ export default function ParticipantLivePage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
+      {snapshot && (
+        <LiveTranscriber
+          meetingId={meetingId}
+          currentSpeakerId={snapshot.currentSpeaker?.id}
+          currentTopicId={snapshot.currentTopicId}
+          transcriptionEnabled={snapshot.meeting?.transcriptionEnabled ?? true}
+        />
+      )}
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -326,6 +336,13 @@ export default function ParticipantLivePage() {
               </Card>
             )}
 
+            {/* Take floor control (visible solo para RDR/Secretario) */}
+            <TakeFloorControl
+              meetingId={meetingId}
+              currentSpeaker={snapshot.currentSpeaker}
+              currentTopicId={snapshot.currentTopicId}
+            />
+
             {/* Speaking queue */}
             <SpeakingQueueList
               items={snapshot.speakingQueue ?? []}
@@ -395,40 +412,54 @@ export default function ParticipantLivePage() {
             </div>
 
             {/* Attendance indicator */}
-            {snapshot.clubAttendance && snapshot.clubAttendance.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Clubes Presentes</h3>
-                <div className="rounded-xl border bg-card text-card-foreground shadow-sm p-4 space-y-2">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{snapshot.clubAttendance.filter((c) => c.connected).length} de {snapshot.clubAttendance.length} conectados</span>
-                    {snapshot.attendanceLocked && (
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Cerrada</span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {snapshot.clubAttendance.map((c) => (
-                      <span
-                        key={c.clubId}
-                        className={cn(
-                          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all border',
-                          c.connected
-                            ? 'border-success/30 bg-success/10 text-success'
-                            : 'border-border bg-muted/30 text-muted-foreground',
-                        )}
-                      >
+            {snapshot.clubAttendance && (() => {
+              const clubsToRender = snapshot.clubAttendance;
+              if (clubsToRender.length === 0) return null;
+              const totalPresent = clubsToRender.filter((c) => c.isPresent).length;
+              const connectedPresent = clubsToRender.filter((c) => c.isPresent && c.connected).length;
+              return (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Clubes Presentes</h3>
+                  <div className="rounded-xl border bg-card text-card-foreground shadow-sm p-4 space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{connectedPresent} de {totalPresent} conectados</span>
+                      {snapshot.attendanceLocked && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Cerrada</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {clubsToRender.map((c) => (
                         <span
+                          key={c.clubId}
                           className={cn(
-                            'size-1.5 rounded-full',
-                            c.connected ? 'bg-success animate-pulse' : 'bg-muted-foreground/50',
+                            'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all border',
+                            c.isYellow
+                              ? 'border-warning/30 bg-warning/10 text-warning font-medium'
+                              : c.addedAfterLock
+                                ? 'border-warning/30 bg-warning/10 text-warning'
+                                : c.connected
+                                  ? 'border-success/30 bg-success/10 text-success'
+                                  : 'border-border bg-muted/30 text-muted-foreground',
                           )}
-                        />
-                        {c.clubName}
-                      </span>
-                    ))}
+                        >
+                          <span
+                            className={cn(
+                              'size-1.5 rounded-full',
+                              c.isYellow
+                                ? 'bg-warning animate-pulse'
+                                : c.connected
+                                  ? 'bg-success animate-pulse'
+                                  : 'bg-muted-foreground/50',
+                            )}
+                          />
+                          {c.clubName}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </div>
       )}

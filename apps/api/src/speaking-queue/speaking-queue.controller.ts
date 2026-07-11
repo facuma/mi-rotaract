@@ -50,6 +50,14 @@ export class SpeakingQueueController {
     return this.queueService.getQueueState(meetingId);
   }
 
+  @Post('release-floor')
+  releaseFloor(
+    @Param('meetingId') meetingId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.queueService.releaseFloor(meetingId, user.id);
+  }
+
   @Post('current-speaker')
   @UseGuards(RolesGuard)
   @Roles(Role.SECRETARY, Role.RDR)

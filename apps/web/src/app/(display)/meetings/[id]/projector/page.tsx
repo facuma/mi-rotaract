@@ -81,8 +81,10 @@ export default function ProjectorPage() {
 
   const quorum = snapshot?.quorum;
   const clubs = snapshot?.clubAttendance ?? [];
-  const connectedClubs = clubs.filter((c) => c.connected);
-  const disconnectedClubs = clubs.filter((c) => !c.connected);
+  const votingBaseClubs = clubs.filter((c) => c.isPresent);
+  const connectedVotingClubs = votingBaseClubs.filter((c) => c.connected);
+  const disconnectedVotingClubs = votingBaseClubs.filter((c) => !c.connected);
+  const yellowClubs = clubs.filter((c) => !c.isPresent && c.connected);
   const hasActiveVote = !!snapshot?.activeVoteSession;
   const hasVoteResult = !!voteResult && !hasActiveVote;
   const typeLabel = snapshot?.meetingType ? MEETING_TYPE_LABELS[snapshot.meetingType] ?? snapshot.meetingType : '';
@@ -392,16 +394,16 @@ export default function ProjectorPage() {
               </span>
               {snapshot.attendanceLocked && (
                 <span className="inline-flex items-center rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                  {connectedClubs.length} papeletas
+                  {connectedVotingClubs.length} papeletas
                 </span>
               )}
             </div>
             <span className="text-sm font-semibold tabular-nums">
-              {connectedClubs.length} conectados / {clubs.length} registrados
+              {connectedVotingClubs.length} conectados / {votingBaseClubs.length} registrados
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {connectedClubs.map((c) => (
+            {connectedVotingClubs.map((c) => (
               <span
                 key={c.clubId}
                 className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-3 py-1 text-xs font-medium text-success"
@@ -410,7 +412,16 @@ export default function ProjectorPage() {
                 {c.clubName}
               </span>
             ))}
-            {disconnectedClubs.map((c) => (
+            {yellowClubs.map((c) => (
+              <span
+                key={c.clubId}
+                className="inline-flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 px-3 py-1 text-xs font-medium text-warning"
+              >
+                <span className="size-1.5 rounded-full bg-warning animate-pulse" />
+                {c.clubName} (No vota)
+              </span>
+            ))}
+            {disconnectedVotingClubs.map((c) => (
               <span
                 key={c.clubId}
                 className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/30 px-3 py-1 text-xs text-muted-foreground"

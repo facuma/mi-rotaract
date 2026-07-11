@@ -96,6 +96,34 @@ export class SpeakingQueueService {
     return this.getQueueState(meetingId);
   }
 
+  /**
+   * Permite al orador actual soltar la palabra por sí mismo.
+   * A diferencia de setCurrentSpeaker (solo SECRETARY/RDR), cualquier usuario
+   * puede invocarlo, pero solo si es quien tiene la palabra en este momento.
+   * No permite asignarse como orador: únicamente liberar el atril.
+   */
+  async releaseFloor(meetingId: string, userId: string) {
+    const meeting = await this.prisma.meeting.findUnique({ where: { id: meetingId } });
+    if (!meeting) throw new NotFoundException('Reunión no encontrada');
+    if (meeting.currentSpeakerId !== userId) {
+      throw new BadRequestException('No tenés la palabra actualmente');
+    }
+    await this.prisma.meeting.update({
+      where: { id: meetingId },
+      data: { currentSpeakerId: null },
+    });
+    await this.audit.log({
+      meetingId,
+      actorUserId: userId,
+      action: 'meeting.speaker.released',
+      entityType: 'Meeting',
+      entityId: meetingId,
+      metadata: { previousSpeakerId: userId },
+    });
+    await this.realtime.broadcastSnapshot(meetingId);
+    return { ok: true };
+  }
+
   async setNextSpeaker(meetingId: string, userId: string | null, actorUserId: string) {
     const meeting = await this.prisma.meeting.findUnique({ where: { id: meetingId } });
     if (!meeting) throw new NotFoundException('Reunión no encontrada');
