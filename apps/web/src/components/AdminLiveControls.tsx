@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { FormSection } from '@/components/ui/form-section';
 import {
   Dialog,
@@ -1607,6 +1608,11 @@ export function AdminVotingControl({
 type AdminMotionsControlProps = {
   meetingId: string;
   motions?: any[];
+  clubAttendance?: {
+    clubId: string;
+    clubName: string;
+    isPresent?: boolean;
+  }[];
   onVoteOpened?: () => void;
   className?: string;
 };
@@ -1614,12 +1620,20 @@ type AdminMotionsControlProps = {
 export function AdminMotionsControl({
   meetingId,
   motions = [],
+  clubAttendance = [],
   onVoteOpened,
   className,
 }: AdminMotionsControlProps) {
   const [motionVoteMethod, setMotionVoteMethod] = useState<Record<string, 'PUBLIC' | 'SECRET'>>({});
   const [motionVoteMajority, setMotionVoteMajority] = useState<Record<string, 'SIMPLE' | 'ABSOLUTE' | 'TWO_THIRDS' | 'THREE_QUARTERS'>>({});
   const [actionLoading, setActionLoading] = useState(false);
+
+  const [proposeDialogOpen, setProposeDialogOpen] = useState(false);
+  const [motionTitle, setMotionTitle] = useState('');
+  const [motionDesc, setMotionDesc] = useState('');
+  const [proposerClubId, setProposerClubId] = useState('');
+  const [seconderClubId, setSeconderClubId] = useState<string>('__none__');
+  const [submittingMotion, setSubmittingMotion] = useState(false);
 
   async function handleLaunchMotionVote(motionId: string) {
     const method = motionVoteMethod[motionId] ?? 'PUBLIC';
@@ -1636,10 +1650,47 @@ export function AdminMotionsControl({
     }
   }
 
+  async function handleProposeMotion(e: React.FormEvent) {
+    e.preventDefault();
+    if (!motionTitle.trim()) {
+      toast.error('La moción debe tener un título.');
+      return;
+    }
+    if (!proposerClubId) {
+      toast.error('Debe seleccionar el club que propone la moción.');
+      return;
+    }
+    setSubmittingMotion(true);
+    try {
+      await motionsApi.propose(
+        meetingId,
+        motionTitle.trim(),
+        motionDesc.trim() || undefined,
+        proposerClubId,
+        seconderClubId !== '__none__' ? seconderClubId : undefined,
+      );
+      toast.success('Moción registrada con éxito.');
+      setProposeDialogOpen(false);
+      setMotionTitle('');
+      setMotionDesc('');
+      setProposerClubId('');
+      setSeconderClubId('__none__');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al registrar la moción');
+    } finally {
+      setSubmittingMotion(false);
+    }
+  }
+
   return (
     <Card className={className}>
       <CardHeader className="pb-3 border-b border-border mb-4">
-        <CardTitle className="text-base">Mociones de la Sala</CardTitle>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <CardTitle className="text-base">Mociones de la Sala</CardTitle>
+          <Button size="sm" onClick={() => setProposeDialogOpen(true)}>
+            ＋ Proponer Moción
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {motions.length === 0 ? (
@@ -1737,6 +1788,82 @@ export function AdminMotionsControl({
           </div>
         )}
       </CardContent>
+
+      <Dialog open={proposeDialogOpen} onOpenChange={setProposeDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Proponer Moción</DialogTitle>
+            <DialogDescription>
+              Registrá la moción a nombre del club que la propone. Si ya sabés qué club la secunda, seleccionalo para que quede lista para votar.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleProposeMotion} className="space-y-4 pt-2">
+            <div className="space-y-1">
+              <Label htmlFor="motion-title" className="text-xs">Título de la moción</Label>
+              <Input
+                id="motion-title"
+                placeholder="Ej. Aprobar la moción de fondos para..."
+                value={motionTitle}
+                onChange={(e) => setMotionTitle(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="motion-description" className="text-xs">Descripción (opcional)</Label>
+              <Textarea
+                id="motion-description"
+                placeholder="Explica brevemente de qué se trata la moción..."
+                value={motionDesc}
+                onChange={(e) => setMotionDesc(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Propone</Label>
+              <Select value={proposerClubId} onValueChange={setProposerClubId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar club..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {clubAttendance
+                    .filter((c) => c.clubId !== seconderClubId)
+                    .map((c) => (
+                      <SelectItem key={c.clubId} value={c.clubId}>
+                        {c.clubName}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Secunda (opcional)</Label>
+              <Select value={seconderClubId} onValueChange={setSeconderClubId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pendiente..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Pendiente / se segunda después —</SelectItem>
+                  {clubAttendance
+                    .filter((c) => c.clubId !== proposerClubId)
+                    .map((c) => (
+                      <SelectItem key={c.clubId} value={c.clubId}>
+                        {c.clubName}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setProposeDialogOpen(false)} disabled={submittingMotion}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={submittingMotion}>
+                {submittingMotion ? 'Enviando...' : 'Proponer Moción'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

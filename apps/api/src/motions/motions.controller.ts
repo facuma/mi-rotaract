@@ -12,13 +12,17 @@ export class MotionsController {
   constructor(private readonly motionsService: MotionsService) {}
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(Role.SECRETARY, Role.RDR)
   propose(
     @Param('meetingId') meetingId: string,
     @Body('title') title: string,
     @Body('description') description: string | undefined,
+    @Body('clubId') clubId: string,
+    @Body('secondedByClubId') secondedByClubId: string | undefined,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.motionsService.propose(meetingId, user.id, title, description);
+    return this.motionsService.propose(meetingId, user.id, title, description, clubId, secondedByClubId);
   }
 
   @Post(':motionId/second')

@@ -118,6 +118,7 @@ export default function AdminLivePage() {
               <AdminMotionsControl
                 meetingId={meetingId}
                 motions={snapshot.motions}
+                clubAttendance={snapshot.clubAttendance}
               />
               <SpeakingQueueList
                 items={snapshot.speakingQueue ?? []}

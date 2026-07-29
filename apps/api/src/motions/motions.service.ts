@@ -23,7 +23,9 @@ export class MotionsService {
     meetingId: string,
     userId: string,
     title: string,
-    description?: string,
+    description: string | undefined,
+    clubId: string,
+    secondedByClubId?: string,
   ) {
     const meeting = await this.prisma.meeting.findUnique({
       where: { id: meetingId },
@@ -33,23 +35,27 @@ export class MotionsService {
       throw new BadRequestException('Solo se pueden proponer mociones durante una reunión activa');
     }
 
-    // Find user's club representation
-    const participant = await this.prisma.meetingParticipant.findUnique({
-      where: { meetingId_userId: { meetingId, userId } },
-    });
-
-    let clubId = participant?.clubId;
-
     if (!clubId) {
-      const membership = await this.prisma.membership.findFirst({
-        where: { userId },
-        select: { clubId: true },
-      });
-      clubId = membership?.clubId;
+      throw new BadRequestException('Debe indicar el club que propone la moción');
     }
 
-    if (!clubId) {
-      throw new ForbiddenException('Debe pertenecer a un club para proponer una moción');
+    const proposerAttendance = await this.prisma.clubMeetingAttendance.findUnique({
+      where: { meetingId_clubId: { meetingId, clubId } },
+    });
+    if (!proposerAttendance) {
+      throw new BadRequestException('El club proponente no está presente en esta reunión');
+    }
+
+    if (secondedByClubId) {
+      if (secondedByClubId === clubId) {
+        throw new BadRequestException('Un club no puede secundar su propia moción');
+      }
+      const seconderAttendance = await this.prisma.clubMeetingAttendance.findUnique({
+        where: { meetingId_clubId: { meetingId, clubId: secondedByClubId } },
+      });
+      if (!seconderAttendance) {
+        throw new BadRequestException('El club que secunda no está presente en esta reunión');
+      }
     }
 
     const motion = await this.prisma.motion.create({
@@ -57,12 +63,14 @@ export class MotionsService {
         meetingId,
         title,
         description: description ?? null,
-        status: MotionStatus.PROPOSED,
+        status: secondedByClubId ? MotionStatus.SECONDED : MotionStatus.PROPOSED,
         proposedByUserId: userId,
         proposedByClubId: clubId,
+        secondedByClubId: secondedByClubId ?? null,
       },
       include: {
         proposedByClub: { select: { id: true, name: true } },
+        secondedByClub: { select: { id: true, name: true } },
       },
     });
 
@@ -72,7 +80,7 @@ export class MotionsService {
       action: 'motion.proposed',
       entityType: 'Motion',
       entityId: motion.id,
-      metadata: { title, clubId },
+      metadata: { title, clubId, secondedByClubId: secondedByClubId ?? null },
     });
 
     await this.realtime.broadcastSnapshot(meetingId);
