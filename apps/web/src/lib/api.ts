@@ -249,10 +249,16 @@ export const topicsApi = {
 };
 
 export const motionsApi = {
-  propose: (meetingId: string, title: string, description?: string) =>
+  propose: (
+    meetingId: string,
+    title: string,
+    description: string | undefined,
+    clubId: string,
+    secondedByClubId?: string,
+  ) =>
     api<any>(`/meetings/${meetingId}/motions`, {
       method: 'POST',
-      body: JSON.stringify({ title, description }),
+      body: JSON.stringify({ title, description, clubId, secondedByClubId }),
     }),
   second: (meetingId: string, motionId: string) =>
     api<any>(`/meetings/${meetingId}/motions/${motionId}/second`, {

@@ -18,10 +18,6 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { cn } from '@/lib/utils';
 import { motionsApi, votingApi } from '@/lib/api';
 import { toast } from 'sonner';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { LiveTranscriber } from '@/components/meetings/LiveTranscriber';
 import { TakeFloorControl } from '@/components/meetings/TakeFloorControl';
@@ -32,10 +28,6 @@ export default function ParticipantLivePage() {
   const { snapshot, voteResult, connected, joinError } = useMeetingRoom(meetingId);
   const { user } = useAuthState();
 
-  const [proposeDialogOpen, setProposeDialogOpen] = useState(false);
-  const [motionTitle, setMotionTitle] = useState('');
-  const [motionDesc, setMotionDesc] = useState('');
-  const [submittingMotion, setSubmittingMotion] = useState(false);
   const [secondingMotionId, setSecondingMotionId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -45,26 +37,6 @@ export default function ParticipantLivePage() {
       : null;
   const isRequested = !!ownRequest;
   const requestId = ownRequest?.id;
-
-  async function handleProposeMotion(e: React.FormEvent) {
-    e.preventDefault();
-    if (!motionTitle.trim()) {
-      toast.error('La moción debe tener un título.');
-      return;
-    }
-    setSubmittingMotion(true);
-    try {
-      await motionsApi.propose(meetingId, motionTitle.trim(), motionDesc.trim() || undefined);
-      toast.success('Moción propuesta con éxito.');
-      setProposeDialogOpen(false);
-      setMotionTitle('');
-      setMotionDesc('');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al proponer moción');
-    } finally {
-      setSubmittingMotion(false);
-    }
-  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -255,11 +227,6 @@ export default function ParticipantLivePage() {
                       <h3 className="font-semibold text-base">Mociones de la Sala</h3>
                       <p className="text-xs text-muted-foreground">Deben ser secundadas por otro club para ir a votación.</p>
                     </div>
-                    {(snapshot.status === 'LIVE' || snapshot.status === 'PAUSED') && (
-                      <Button onClick={() => setProposeDialogOpen(true)} size="sm">
-                        ＋ Proponer Moción
-                      </Button>
-                    )}
                   </div>
 
                   {snapshot.motions.length === 0 ? (
@@ -463,45 +430,6 @@ export default function ParticipantLivePage() {
           </div>
         </div>
       )}
-
-      {/* Propose Motion Dialog */}
-      <Dialog open={proposeDialogOpen} onOpenChange={setProposeDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Proponer Moción</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleProposeMotion} className="space-y-4 pt-2">
-            <div className="space-y-1">
-              <Label htmlFor="title" className="text-xs">Título de la moción</Label>
-              <Input
-                id="title"
-                placeholder="Ej. Aprobar la moción de fondos para..."
-                value={motionTitle}
-                onChange={(e) => setMotionTitle(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="description" className="text-xs">Descripción (opcional)</Label>
-              <Textarea
-                id="description"
-                placeholder="Explica brevemente de qué se trata la moción..."
-                value={motionDesc}
-                onChange={(e) => setMotionDesc(e.target.value)}
-                rows={3}
-              />
-            </div>
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => setProposeDialogOpen(false)} disabled={submittingMotion}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={submittingMotion}>
-                {submittingMotion ? 'Enviando...' : 'Proponer Moción'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
